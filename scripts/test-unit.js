@@ -26,6 +26,9 @@ import {
 } from "../lib/greetings.js";
 import {
   findProfileByName,
+  filterEligibleJokeProfiles,
+  HOURLY_JOKE_EXCLUDED_NAMES,
+  JOKE_ELIGIBLE_PROFILES,
   profileLookupKey,
   resolveJokeProfiles,
   TEAM_PROFILES,
@@ -342,12 +345,43 @@ test("pickMemberForSlot is deterministic per date+hour", () => {
   const b = pickMemberForSlot("2026-07-28", 11);
   if (a.name !== b.name) throw new Error("same slot should match");
   const c = pickMemberForSlot("2026-07-28", 12);
-  if (a.name === c.name && TEAM_PROFILES.length > 1) {
+  if (a.name === c.name && JOKE_ELIGIBLE_PROFILES.length > 1) {
     /* usually differs; allow rare collision */
   }
   const d = pickMemberForSlot("2026-07-29", 11);
-  if (a.name === d.name && TEAM_PROFILES.length > 1) {
+  if (a.name === d.name && JOKE_ELIGIBLE_PROFILES.length > 1) {
     /* allow rare collision across days */
+  }
+});
+
+test("hourly joke exclusion list omits Aanvi, Rishika, and Ronak Sir", () => {
+  for (const name of HOURLY_JOKE_EXCLUDED_NAMES) {
+    if (JOKE_ELIGIBLE_PROFILES.some((p) => p.name === name)) {
+      throw new Error(`${name} should not be in eligible profiles`);
+    }
+    if (filterEligibleJokeProfiles(TEAM_PROFILES).some((p) => p.name === name)) {
+      throw new Error(`${name} should be filtered from full profile list`);
+    }
+  }
+
+  const resolved = resolveJokeProfiles([
+    { name: "Aanvi" },
+    { name: "Rishika" },
+    { name: "Ronak Vaya" },
+    { name: "Akshay" },
+  ]);
+  if (resolved.some((p) => HOURLY_JOKE_EXCLUDED_NAMES.has(p.name))) {
+    throw new Error("excluded names should not appear in resolved roster profiles");
+  }
+  if (resolved.length !== 1 || resolved[0].name !== "Akshay") {
+    throw new Error(`expected only Akshay, got ${resolved.map((p) => p.name).join(",")}`);
+  }
+
+  for (let hour = 0; hour < 24; hour += 1) {
+    const picked = pickMemberForSlot("2026-07-28", hour);
+    if (HOURLY_JOKE_EXCLUDED_NAMES.has(picked.name)) {
+      throw new Error(`${picked.name} picked at hour ${hour}`);
+    }
   }
 });
 
