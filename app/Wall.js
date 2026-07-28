@@ -12,6 +12,7 @@ import AlertsTab from "./components/AlertsTab";
 import HistoryTab from "./components/HistoryTab";
 import TaskComposer from "./components/TaskComposer";
 import TaskDetailDrawer from "./components/TaskDetailDrawer";
+import UserProfileDrawer from "./components/UserProfileDrawer";
 import Icon from "./components/ui/Icon";
 import Button from "./components/ui/Button";
 import { ToastProvider, useToast } from "./components/ui/Toast";
@@ -81,6 +82,7 @@ function WallShell({ initialState }) {
   const [now, setNow] = useState(() => Date.now());
   const [composerOpen, setComposerOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(null);
   const [syncError, setSyncError] = useState(false);
@@ -111,24 +113,21 @@ function WallShell({ initialState }) {
   }, []);
 
   /**
-   * Persist hourly roast opt-in and refresh local user state for Wall gating.
-   * @param {boolean} allow
+   * Persist hourly roast opt-in/keywords and refresh local user state for Wall gating.
+   * @param {{ allow?: boolean, keywords?: string[] }} prefs
    */
-  const handleRoastPreferenceChange = useCallback(
-    async (allow) => {
-      const res = await fetch("/api/auth/roast-preference", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allow }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || "Could not update roast preference");
-      }
-      setUser(data.user);
-    },
-    []
-  );
+  const handleRoastPreferenceChange = useCallback(async (prefs) => {
+    const res = await fetch("/api/auth/roast-preference", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(prefs),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "Could not update roast preference");
+    }
+    setUser(data.user);
+  }, []);
 
   /** Load session on mount. */
   useEffect(() => {
@@ -184,6 +183,7 @@ function WallShell({ initialState }) {
   const handleSessionExpired = useCallback(() => {
     setUser(null);
     setComposerOpen(false);
+    setProfileOpen(false);
   }, []);
 
   const closeComposer = useCallback(() => {
@@ -198,6 +198,16 @@ function WallShell({ initialState }) {
   /** Close task detail drawer. */
   const closeTaskDetail = useCallback(() => {
     setSelectedTask(null);
+  }, []);
+
+  /** Open signed-in user profile drawer. */
+  const openProfile = useCallback(() => {
+    setProfileOpen(true);
+  }, []);
+
+  /** Close profile drawer. */
+  const closeProfile = useCallback(() => {
+    setProfileOpen(false);
   }, []);
 
   const handleTaskPosted = useCallback(
@@ -397,7 +407,7 @@ function WallShell({ initialState }) {
         refreshing={refreshing}
         lastSyncLabel={lastSyncLabel}
         user={authLoaded ? user : null}
-        onRoastPreferenceChange={user ? handleRoastPreferenceChange : undefined}
+        onOpenProfile={user ? openProfile : undefined}
       />
 
       <main id="main" className="mx-auto max-w-shell px-4 pb-20 pt-6 sm:px-6 sm:pt-8 lg:px-8">
@@ -638,6 +648,13 @@ function WallShell({ initialState }) {
         open={Boolean(selectedTask)}
         task={selectedTask}
         onClose={closeTaskDetail}
+      />
+
+      <UserProfileDrawer
+        open={profileOpen && Boolean(user)}
+        user={user}
+        onClose={closeProfile}
+        onRoastPreferenceChange={user ? handleRoastPreferenceChange : undefined}
       />
     </div>
   );

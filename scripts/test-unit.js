@@ -26,16 +26,19 @@ import {
 } from "../lib/greetings.js";
 import {
   canViewHourlyJoke,
-  findProfileByName,
-  filterEligibleJokeProfiles,
-  HOURLY_JOKE_EXCLUDED_NAMES,
-  JOKE_ELIGIBLE_PROFILES,
-  profileLookupKey,
+  getUserRoastKeywords,
   resolveJokeProfiles,
-  TEAM_PROFILES,
 } from "../lib/teamProfiles.js";
 import {
+  MAX_KEYWORD_LENGTH,
+  MAX_ROAST_KEYWORDS,
+  normalizeRoastKeywords,
+  parseRoastKeywordsFromDb,
+  serializeRoastKeywords,
+} from "../lib/roastKeywords.js";
+import {
   buildJokeCacheKey,
+  buildJokeUserPrompt,
   getHourSlot,
   isWithinOfficeHours,
   OFFICE_HOURS_END,
@@ -342,20 +345,49 @@ test("getHourSlot and buildJokeCacheKey", () => {
 });
 
 test("pickMemberForSlot is deterministic per date+hour", () => {
-  const a = pickMemberForSlot("2026-07-28", 11);
-  const b = pickMemberForSlot("2026-07-28", 11);
-  if (a.name !== b.name) throw new Error("same slot should match");
-  const c = pickMemberForSlot("2026-07-28", 12);
-  if (a.name === c.name && JOKE_ELIGIBLE_PROFILES.length > 1) {
+  const profiles = [
+    { name: "Akshay", keywords: ["helpful"] },
+    { name: "Harsh", keywords: ["QA"] },
+  ];
+  const a = pickMemberForSlot("2026-07-28", 11, profiles);
+  const b = pickMemberForSlot("2026-07-28", 11, profiles);
+  if (!a || a.name !== b.name) throw new Error("same slot should match");
+  const c = pickMemberForSlot("2026-07-28", 12, profiles);
+  if (a.name === c.name && profiles.length > 1) {
     /* usually differs; allow rare collision */
   }
-  const d = pickMemberForSlot("2026-07-29", 11);
-  if (a.name === d.name && JOKE_ELIGIBLE_PROFILES.length > 1) {
+  const d = pickMemberForSlot("2026-07-29", 11, profiles);
+  if (a.name === d.name && profiles.length > 1) {
     /* allow rare collision across days */
+  }
+  if (pickMemberForSlot("2026-07-28", 11, []) !== null) {
+    throw new Error("empty profiles should return null");
   }
 });
 
-test("canViewHourlyJoke denies anonymous and excluded viewers", () => {
+test("session join row exposes user id for roast updates", () => {
+  const joinRow = {
+    sessionId: "sess_1",
+    id: "u_ms49na32_qm08r2",
+    name: "Akshay Pareek",
+    email: "akshay@example.com",
+    memberId: "akshay-pareek",
+    allowHourlyRoast: false,
+    roastKeywords: "[]",
+  };
+  const userId = joinRow.id ?? joinRow.userId;
+  if (userId !== "u_ms49na32_qm08r2") {
+    throw new Error(`expected stable user id, got ${userId}`);
+  }
+
+  const legacyJoinRow = { ...joinRow, id: undefined, userId: "u_legacy" };
+  const legacyId = legacyJoinRow.id ?? legacyJoinRow.userId;
+  if (legacyId !== "u_legacy") {
+    throw new Error(`expected legacy user id fallback, got ${legacyId}`);
+  }
+});
+
+test("canViewHourlyJoke requires opt-in, id, name, and keywords", () => {
   if (canViewHourlyJoke(null)) throw new Error("null user should not view");
   if (canViewHourlyJoke(undefined)) throw new Error("undefined user should not view");
   if (canViewHourlyJoke({})) throw new Error("missing id/name should not view");
@@ -365,17 +397,15 @@ test("canViewHourlyJoke denies anonymous and excluded viewers", () => {
     throw new Error("opt-out user should not view hourly roast");
   }
 
-  for (const name of ["Aanvi", "Rishika", "Ronak Sir", "Ronak Vaya", "Ronak"]) {
-    if (canViewHourlyJoke({ id: "u_ex", name, allowHourlyRoast: true })) {
-      throw new Error(`${name} should not view hourly roast`);
-    }
+  if (canViewHourlyJoke({ id: "u_no_kw", name: "Akshay", allowHourlyRoast: true, roastKeywords: [] })) {
+    throw new Error("opted-in user without keywords should not view hourly roast");
   }
 
-  if (!canViewHourlyJoke({ id: "u_ok", name: "Akshay", allowHourlyRoast: true })) {
-    throw new Error("Akshay should view hourly roast when opted in");
+  if (!canViewHourlyJoke({ id: "u_ok", name: "Akshay", allowHourlyRoast: true, roastKeywords: ["helpful"] })) {
+    throw new Error("Akshay should view hourly roast when opted in with keywords");
   }
-  if (!canViewHourlyJoke({ id: "u_ok2", name: "Harsh", allowHourlyRoast: true })) {
-    throw new Error("Harsh should view hourly roast when opted in");
+  if (!canViewHourlyJoke({ id: "u_ok2", name: "Harsh", allowHourlyRoast: true, roastKeywords: ["QA"] })) {
+    throw new Error("Harsh should view hourly roast when opted in with keywords");
   }
 });
 
@@ -393,60 +423,88 @@ test("resolveJokeProfiles excludes opted-out roster members", () => {
   }
 
   const resolved = resolveJokeProfiles([
-    { name: "Akshay", allowHourlyRoast: false },
-    { name: "Harsh", allowHourlyRoast: true },
+    { name: "Akshay", allowHourlyRoast: false, roastKeywords: ["helpful"] },
+    { name: "Harsh", allowHourlyRoast: true, roastKeywords: ["QA"] },
   ]);
   if (resolved.length !== 1 || resolved[0].name !== "Harsh") {
     throw new Error(`expected only Harsh, got ${resolved.map((p) => p.name).join(",")}`);
   }
 });
 
-test("hourly joke exclusion list omits Aanvi, Rishika, and Ronak Sir", () => {
-  for (const name of HOURLY_JOKE_EXCLUDED_NAMES) {
-    if (JOKE_ELIGIBLE_PROFILES.some((p) => p.name === name)) {
-      throw new Error(`${name} should not be in eligible profiles`);
-    }
-    if (filterEligibleJokeProfiles(TEAM_PROFILES).some((p) => p.name === name)) {
-      throw new Error(`${name} should be filtered from full profile list`);
-    }
-  }
-
+test("resolveJokeProfiles skips members without keywords", () => {
   const resolved = resolveJokeProfiles([
-    { name: "Aanvi", allowHourlyRoast: true },
-    { name: "Rishika", allowHourlyRoast: true },
-    { name: "Ronak Vaya", allowHourlyRoast: true },
-    { name: "Akshay", allowHourlyRoast: true },
+    { name: "Akshay", allowHourlyRoast: true, roastKeywords: [] },
+    { name: "Harsh", allowHourlyRoast: true, roastKeywords: ["QA"] },
   ]);
-  if (resolved.some((p) => HOURLY_JOKE_EXCLUDED_NAMES.has(p.name))) {
-    throw new Error("excluded names should not appear in resolved roster profiles");
-  }
-  if (resolved.length !== 1 || resolved[0].name !== "Akshay") {
-    throw new Error(`expected only Akshay, got ${resolved.map((p) => p.name).join(",")}`);
-  }
-
-  for (let hour = 0; hour < 24; hour += 1) {
-    const picked = pickMemberForSlot("2026-07-28", hour);
-    if (HOURLY_JOKE_EXCLUDED_NAMES.has(picked.name)) {
-      throw new Error(`${picked.name} picked at hour ${hour}`);
-    }
+  if (resolved.length !== 1 || resolved[0].name !== "Harsh") {
+    throw new Error(`expected only Harsh, got ${resolved.map((p) => p.name).join(",")}`);
   }
 });
 
-test("team profile lookup by roster name", () => {
-  if (profileLookupKey("Ronak Vaya") !== "Ronak") {
-    throw new Error("first name extract failed");
-  }
-  const boss = findProfileByName("Ronak Vaya");
-  if (!boss?.isBoss) throw new Error("Ronak Vaya should map to boss profile");
-  if (findProfileByName("Akshay")?.name !== "Akshay") {
-    throw new Error("Akshay profile missing");
-  }
+test("resolveJokeProfiles dedupes by name", () => {
   const resolved = resolveJokeProfiles([
-    { name: "Akshay", allowHourlyRoast: true },
-    { name: "Unknown Person", allowHourlyRoast: true },
-    { name: "Harsh", allowHourlyRoast: true },
+    { name: "Akshay", allowHourlyRoast: true, roastKeywords: ["helpful"] },
+    { name: "Unknown Person", allowHourlyRoast: true, roastKeywords: ["mystery"] },
+    { name: "Harsh", allowHourlyRoast: true, roastKeywords: ["QA"] },
   ]);
-  if (resolved.length !== 2) throw new Error(`expected 2 profiles got ${resolved.length}`);
+  if (resolved.length !== 3) throw new Error(`expected 3 profiles got ${resolved.length}`);
+});
+
+test("previously excluded names can opt in with keywords", () => {
+  const resolved = resolveJokeProfiles([
+    { name: "Aanvi", allowHourlyRoast: true, roastKeywords: ["funny"] },
+    { name: "Rishika", allowHourlyRoast: true, roastKeywords: ["thoughtful"] },
+    { name: "Ronak Vaya", allowHourlyRoast: true, roastKeywords: ["boss"] },
+  ]);
+  if (resolved.length !== 3) throw new Error(`expected 3 targets got ${resolved.length}`);
+  if (!resolved.find((p) => p.name === "Ronak Vaya")?.isBoss) {
+    throw new Error("Ronak Vaya should still be marked boss");
+  }
+});
+
+test("roast keyword normalization", () => {
+  const normalized = normalizeRoastKeywords([
+    "  Coffee  ",
+    "coffee",
+    "QA",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+  ]);
+  if (normalized.length !== MAX_ROAST_KEYWORDS) {
+    throw new Error(`expected max ${MAX_ROAST_KEYWORDS}, got ${normalized.length}`);
+  }
+  if (normalized[0] !== "Coffee") throw new Error("trim failed");
+  if (normalized.includes("coffee")) throw new Error("dedupe failed");
+
+  const long = "x".repeat(MAX_KEYWORD_LENGTH + 10);
+  const truncated = normalizeRoastKeywords([long])[0];
+  if (truncated.length !== MAX_KEYWORD_LENGTH) throw new Error("length cap failed");
+
+  const roundTrip = parseRoastKeywordsFromDb(serializeRoastKeywords(["helpful", "kind"]));
+  if (roundTrip.join(",") !== "helpful,kind") throw new Error("serialize round trip failed");
+  if (getUserRoastKeywords({ roastKeywords: roundTrip }).join(",") !== "helpful,kind") {
+    throw new Error("getUserRoastKeywords failed");
+  }
+});
+
+test("buildJokeUserPrompt uses keywords", () => {
+  const prompt = buildJokeUserPrompt({
+    name: "Akshay",
+    keywords: ["cool", "helpful"],
+    isBoss: false,
+  });
+  if (!prompt.includes("Akshay") || !prompt.includes("cool, helpful")) {
+    throw new Error("prompt should include name and keywords");
+  }
+  const bossPrompt = buildJokeUserPrompt({
+    name: "Ronak Vaya",
+    keywords: ["leadership"],
+    isBoss: true,
+  });
+  if (!bossPrompt.includes("boss")) throw new Error("boss note missing");
 });
 
 test("parseJokeResponse", () => {

@@ -35,6 +35,8 @@
 | Section label | `.section-label` | Uppercase tracking label |
 | Status pill | `.status-pill.*` | pending/completed/overdue |
 | Daily greeting | `aside` in Wall.js | Left brand accent + faint gradient tint, inline emoji, italic quote |
+| User profile drawer | `app/components/UserProfileDrawer.js` | Right-side panel; account info + hourly roast toggle |
+| Task detail drawer | `app/components/TaskDetailDrawer.js` | Right-side panel; task metadata |
 
 ## Layout
 - Max width: 1400px centered
