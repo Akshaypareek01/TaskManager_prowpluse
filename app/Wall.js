@@ -84,6 +84,7 @@ function WallShell({ initialState }) {
   const [lastSyncAt, setLastSyncAt] = useState(null);
   const [syncError, setSyncError] = useState(false);
   const [clientSeed] = useState(getOrCreateViewerSeed);
+  const [hourlyJoke, setHourlyJoke] = useState(null);
   const inFlight = useRef(false);
 
   /* Clock — 1s tick drives the header time and relative timestamps. */
@@ -318,6 +319,35 @@ function WallShell({ initialState }) {
     });
   }, [now, user?.id, user?.name, user?.email, user?.memberId, authLoaded, clientSeed]);
 
+  /** Changes once per local hour — drives hourly joke refresh. */
+  const hourSlotKey = useMemo(() => {
+    const d = new Date(now);
+    return `${localDayStr(d)}T${String(d.getHours()).padStart(2, "0")}`;
+  }, [Math.floor(now / 3_600_000)]);
+
+  /** Fetch the server-cached hourly joke; hidden outside office hours or on failure. */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/jokes/hourly", { cache: "no-store" });
+        if (!res.ok) {
+          if (!cancelled) setHourlyJoke(null);
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) {
+          setHourlyJoke(data?.joke ? data : null);
+        }
+      } catch {
+        if (!cancelled) setHourlyJoke(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hourSlotKey]);
+
   const tabs = [
     { key: "today", label: "Today", icon: "list-checks", count: stats.totalToday },
     {
@@ -372,6 +402,28 @@ function WallShell({ initialState }) {
                 {dailyGreeting.quote}
               </p>
             </aside>
+            {hourlyJoke && (
+              <aside
+                className="relative mt-3 max-w-2xl rounded-r-lg border-l-2 border-amber-400/70 bg-gradient-to-r from-amber-50/35 to-transparent py-2 pl-3.5 pr-1 sm:py-2.5 sm:pl-4"
+                aria-label={`Hourly joke about ${hourlyJoke.memberName}. ${hourlyJoke.joke}`}
+              >
+                <p className="text-[13px] font-semibold leading-snug text-ink">
+                  <span className="mr-1.5 select-none" aria-hidden="true">
+                    😂
+                  </span>
+                  Hourly roast
+                  <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-ink-500">
+                    {hourlyJoke.memberName}
+                  </span>
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-600" suppressHydrationWarning>
+                  {hourlyJoke.joke}{" "}
+                  <span className="select-none" aria-hidden="true">
+                    {hourlyJoke.emoji}
+                  </span>
+                </p>
+              </aside>
+            )}
           </div>
         </div>
 

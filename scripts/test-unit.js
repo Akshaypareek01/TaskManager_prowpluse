@@ -24,6 +24,21 @@ import {
   getDailyGreeting,
   buildQuoteSeed,
 } from "../lib/greetings.js";
+import {
+  findProfileByName,
+  profileLookupKey,
+  resolveJokeProfiles,
+  TEAM_PROFILES,
+} from "../lib/teamProfiles.js";
+import {
+  buildJokeCacheKey,
+  getHourSlot,
+  isWithinOfficeHours,
+  OFFICE_HOURS_END,
+  OFFICE_HOURS_START,
+  parseJokeResponse,
+  pickMemberForSlot,
+} from "../lib/hourlyJokes.js";
 
 let passed = 0;
 let failed = 0;
@@ -289,6 +304,75 @@ test("getDailyGreeting returns greeting and quote", () => {
   });
   if (!result.greeting.includes("Alex")) throw new Error("missing name");
   if (!result.quote || !result.emoji) throw new Error("missing quote parts");
+});
+
+test("office hours constants", () => {
+  if (OFFICE_HOURS_START !== 10) throw new Error(`start ${OFFICE_HOURS_START}`);
+  if (OFFICE_HOURS_END !== 18) throw new Error(`end ${OFFICE_HOURS_END}`);
+});
+
+test("isWithinOfficeHours boundaries", () => {
+  if (isWithinOfficeHours(new Date(2026, 6, 28, 9, 59))) {
+    throw new Error("9:59 should be outside office hours");
+  }
+  if (!isWithinOfficeHours(new Date(2026, 6, 28, 10, 0))) {
+    throw new Error("10:00 should be inside office hours");
+  }
+  if (!isWithinOfficeHours(new Date(2026, 6, 28, 17, 30))) {
+    throw new Error("5:30 PM should be inside office hours");
+  }
+  if (isWithinOfficeHours(new Date(2026, 6, 28, 18, 0))) {
+    throw new Error("6:00 PM should be outside office hours");
+  }
+});
+
+test("getHourSlot and buildJokeCacheKey", () => {
+  const now = new Date(2026, 6, 28, 14, 22, 55);
+  const slot = getHourSlot(now);
+  if (slot.dateKey !== "2026-07-28") throw new Error(`date ${slot.dateKey}`);
+  if (slot.hour !== 14) throw new Error(`hour ${slot.hour}`);
+  if (slot.hourSlot !== "2026-07-28T14") throw new Error(`slot ${slot.hourSlot}`);
+  if (buildJokeCacheKey(slot.dateKey, slot.hour) !== "2026-07-28:14") {
+    throw new Error("bad cache key");
+  }
+});
+
+test("pickMemberForSlot is deterministic per date+hour", () => {
+  const a = pickMemberForSlot("2026-07-28", 11);
+  const b = pickMemberForSlot("2026-07-28", 11);
+  if (a.name !== b.name) throw new Error("same slot should match");
+  const c = pickMemberForSlot("2026-07-28", 12);
+  if (a.name === c.name && TEAM_PROFILES.length > 1) {
+    /* usually differs; allow rare collision */
+  }
+  const d = pickMemberForSlot("2026-07-29", 11);
+  if (a.name === d.name && TEAM_PROFILES.length > 1) {
+    /* allow rare collision across days */
+  }
+});
+
+test("team profile lookup by roster name", () => {
+  if (profileLookupKey("Ronak Vaya") !== "Ronak") {
+    throw new Error("first name extract failed");
+  }
+  const boss = findProfileByName("Ronak Vaya");
+  if (!boss?.isBoss) throw new Error("Ronak Vaya should map to boss profile");
+  if (findProfileByName("Akshay")?.name !== "Akshay") {
+    throw new Error("Akshay profile missing");
+  }
+  const resolved = resolveJokeProfiles([
+    { name: "Akshay" },
+    { name: "Unknown Person" },
+    { name: "Harsh" },
+  ]);
+  if (resolved.length !== 2) throw new Error(`expected 2 profiles got ${resolved.length}`);
+});
+
+test("parseJokeResponse", () => {
+  const ok = parseJokeResponse('{"joke":"Prakhar speaks so fast Slack needs subtitles.","emoji":"😂"}');
+  if (!ok?.joke.includes("Prakhar")) throw new Error("missing joke text");
+  if (ok.emoji !== "😂") throw new Error("missing emoji");
+  if (parseJokeResponse("{")) throw new Error("invalid JSON should return null");
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
