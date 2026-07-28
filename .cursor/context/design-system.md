@@ -26,7 +26,7 @@
 ## Components
 | Component | Path | Notes |
 |-----------|------|-------|
-| Badge | `app/components/ui/Badge.js` | `.badge` + tone classes (`badge-success`, `badge-danger`, etc.); used on TaskCard status and Roster member stat chips |
+| Badge | `app/components/ui/Badge.js` | `.badge` + tone classes (`badge-success`, `badge-danger`, etc.); roster chips show **pending · done · hours** in warning/success/neutral tones |
 | Glass card | `.glass-card` | Frosted panel, border white/10 |
 | Glass card strong | `.glass-card-strong` | Darker solid glass |
 | Primary button | `.btn-primary` | Gradient pill, glow shadow |

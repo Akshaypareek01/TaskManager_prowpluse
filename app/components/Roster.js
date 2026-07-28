@@ -37,31 +37,35 @@ export function LowEffortAlert({ members, now }) {
 }
 
 /**
- * Build badge configs for roster stat chips (done count + working hours).
+ * Build badge configs for roster stat chips (pending, done, working hours).
  * @param {object} m
  * @param {{ showLowEffortWarning: boolean }} opts
- * @returns {{ done: { label: string, tone: string }, hours: { label: string, tone: string }, ariaSummary: string, inactive: boolean }}
+ * @returns {{ pending: { label: string, tone: string }, done: { label: string, tone: string }, hours: { label: string, tone: string }, ariaSummary: string, inactive: boolean }}
  */
 function rosterStatBadges(m, { showLowEffortWarning }) {
   const inactive = isInactiveToday(m);
   const hours = formatDurationMs(m.workingHoursMs) || "0m";
+  const pendingCount = m.pendingToday ?? 0;
+  const pendingLabel = `${pendingCount} pending`;
   const doneLabel = `${m.completedToday} done`;
   const warnInactive = inactive && showLowEffortWarning;
 
+  const pendingTone = pendingCount > 0 ? "warning" : "neutral";
   const doneTone = warnInactive ? "danger" : m.completedToday > 0 ? "success" : "neutral";
   const hoursTone = warnInactive ? "danger" : "neutral";
 
   return {
+    pending: { label: pendingLabel, tone: pendingTone },
     done: { label: doneLabel, tone: doneTone },
     hours: { label: hours, tone: hoursTone },
-    ariaSummary: `${doneLabel}, ${hours} working`,
+    ariaSummary: `${pendingLabel}, ${doneLabel}, ${hours} working`,
     inactive: warnInactive,
   };
 }
 
 /**
  * Team check-in grid. Doubles as the member filter for Today, Alerts and History.
- * Wraps into multiple rows — no horizontal scroll — so every name stays visible.
+ * Auto-fill columns keep rows balanced at 11+ members; each chip stacks name + stat badges.
  *
  * @param {{ members: object[], filterId: string, onFilter: (id: string) => void, now: number }} props
  */
@@ -72,7 +76,7 @@ export default function Roster({ members, filterId, onFilter, now }) {
   return (
     <motion.div
       {...staggerParent(reduced, 0.02)}
-      className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8"
+      className="grid grid-cols-[repeat(auto-fill,minmax(9.75rem,1fr))] gap-2 sm:grid-cols-[repeat(auto-fill,minmax(10.75rem,1fr))] lg:grid-cols-[repeat(auto-fill,minmax(11.5rem,1fr))]"
       role="group"
       aria-label="Filter tasks by team member"
     >
@@ -98,9 +102,9 @@ export default function Roster({ members, filterId, onFilter, now }) {
             selected={filterId === m.id}
             onClick={() => onFilter(m.id)}
             label={m.name}
-            statBadges={[stats.done, stats.hours]}
+            statBadges={[stats.pending, stats.done, stats.hours]}
             badge={m.badgeCount > 0 ? m.badgeCount : null}
-            ariaLabel={`${m.name}, ${stats.ariaSummary}${stats.inactive ? ", no tasks today" : ""}`}
+            ariaLabel={`${m.name}, ${stats.ariaSummary}${stats.inactive ? ", very low effort today" : ""}`}
             leading={<Avatar member={m} size="xs" ring={false} />}
           />
         );
@@ -133,20 +137,23 @@ function RosterChip({
       aria-label={ariaLabel || label}
       whileTap={reduced ? undefined : { scale: 0.97 }}
       transition={tFast}
-      className={`relative flex w-full min-w-0 items-center gap-2 rounded-full border py-2 pl-1 pr-2.5 text-left transition-[background-color,border-color,box-shadow] duration-fast ease-smooth sm:pr-3 ${borderClass}`}
+      className={`relative flex w-full min-w-0 items-start gap-2 rounded-2xl border py-2 pl-1.5 pr-2 text-left transition-[background-color,border-color,box-shadow] duration-fast ease-smooth sm:pr-2.5 ${borderClass}`}
     >
-      {leading}
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <span className="truncate text-[12px] font-semibold leading-tight text-ink sm:text-[13px]" title={label}>
+      <span className="mt-0.5 shrink-0">{leading}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span
+          className="line-clamp-2 text-[12px] font-semibold leading-snug text-ink sm:text-[13px]"
+          title={label}
+        >
           {label}
         </span>
         {statBadges ? (
-          <span className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
+          <span className="flex flex-wrap items-center gap-1" aria-hidden="true">
             {statBadges.map((chip) => (
               <Badge
                 key={chip.label}
                 tone={chip.tone}
-                className="!px-1.5 !py-0 tabular-nums"
+                className="!px-1.5 !py-0 text-[10px] tabular-nums sm:text-2xs"
               >
                 {chip.label}
               </Badge>
