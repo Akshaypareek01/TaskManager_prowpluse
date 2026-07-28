@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import TopBar from "./components/TopBar";
 import StatCard from "./components/StatCard";
 import Tabs from "./components/Tabs";
-import Roster from "./components/Roster";
+import Roster, { LowEffortAlert } from "./components/Roster";
 import TodayTab from "./components/TodayTab";
 import AlertsTab from "./components/AlertsTab";
 import HistoryTab from "./components/HistoryTab";
@@ -443,13 +443,16 @@ function WallShell({ initialState }) {
         {/* Team check-in */}
         <section className="panel mb-5" aria-labelledby="checkin-heading">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
-            <div className="flex items-baseline gap-2">
-              <h2 id="checkin-heading" className="section-title">
-                Team check-in
-              </h2>
-              <span className="meta tabular-nums">
-                {stats.checkedInCount}/{stats.totalMembers} checked in today
-              </span>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+              <div className="flex items-baseline gap-2">
+                <h2 id="checkin-heading" className="section-title">
+                  Team check-in
+                </h2>
+                <span className="meta tabular-nums">
+                  {stats.checkedInCount}/{stats.totalMembers} checked in today
+                </span>
+              </div>
+              <LowEffortAlert members={members} now={now} />
             </div>
             {filterId !== "all" && (
               <Button variant="link" iconLeft="x" onClick={() => setFilterId("all")}>
@@ -461,6 +464,7 @@ function WallShell({ initialState }) {
             <Roster
               members={members}
               filterId={filterId}
+              now={now}
               onFilter={(id) => {
                 setFilterId(id);
                 if (tab !== "history" && tab !== "alerts") setTab("today");

@@ -3,49 +3,71 @@
 import { motion, useReducedMotion } from "framer-motion";
 import Avatar from "./Avatar";
 import Icon from "./ui/Icon";
+import Badge from "./ui/Badge";
+import { formatDurationMs } from "@/lib/analytics";
+import { isPastLowEffortThreshold } from "@/lib/dates";
+import {
+  formatLowEffortAlertText,
+  inactiveMemberNames,
+  isInactiveToday,
+} from "@/lib/rosterStats";
 import { riseItem, staggerParent, tFast } from "@/lib/motion";
 
 /**
- * Derive the one status line that matters for a member today.
- * @param {object} m
- * @returns {{ text: string, className: string }}
+ * Compact header alert for members doing nothing today.
+ * Hidden before 3 PM local so morning check-ins aren't flagged as low effort.
+ * @param {{ members: object[], now: number }} props
  */
-function statusLine(m) {
-  if (m.overdueCount > 0) {
-    return {
-      text: `${m.overdueCount} overdue`,
-      className: "text-danger-fg",
-    };
-  }
-  if (m.backlogCount > 0) {
-    return {
-      text: `${m.backlogCount} backlog`,
-      className: "text-warning-fg",
-    };
-  }
-  if (m.pendingToday > 0) {
-    return {
-      text: `${m.pendingToday} pending`,
-      className: "text-ink-500",
-    };
-  }
-  if (m.completedToday > 0) {
-    return {
-      text: `${m.completedToday} done`,
-      className: "text-success-fg",
-    };
-  }
-  return { text: "No tasks", className: "text-ink-400" };
+export function LowEffortAlert({ members, now }) {
+  if (!isPastLowEffortThreshold(now)) return null;
+
+  const names = inactiveMemberNames(members);
+  const displayNames = formatLowEffortAlertText(names);
+  if (!displayNames) return null;
+
+  const label = `Very low effort today: ${names.join(", ")}`;
+
+  return (
+    <span role="status" aria-live="polite" aria-label={label} className="inline-flex max-w-full">
+      <Badge tone="danger" className="!px-1.5 !py-0 text-[10px] font-medium sm:text-2xs" aria-hidden="true">
+        Very low effort today: {displayNames}
+      </Badge>
+    </span>
+  );
+}
+
+/**
+ * Build badge configs for roster stat chips (done count + working hours).
+ * @param {object} m
+ * @param {{ showLowEffortWarning: boolean }} opts
+ * @returns {{ done: { label: string, tone: string }, hours: { label: string, tone: string }, ariaSummary: string, inactive: boolean }}
+ */
+function rosterStatBadges(m, { showLowEffortWarning }) {
+  const inactive = isInactiveToday(m);
+  const hours = formatDurationMs(m.workingHoursMs) || "0m";
+  const doneLabel = `${m.completedToday} done`;
+  const warnInactive = inactive && showLowEffortWarning;
+
+  const doneTone = warnInactive ? "danger" : m.completedToday > 0 ? "success" : "neutral";
+  const hoursTone = warnInactive ? "danger" : "neutral";
+
+  return {
+    done: { label: doneLabel, tone: doneTone },
+    hours: { label: hours, tone: hoursTone },
+    ariaSummary: `${doneLabel}, ${hours} working`,
+    inactive: warnInactive,
+  };
 }
 
 /**
  * Team check-in grid. Doubles as the member filter for Today, Alerts and History.
  * Wraps into multiple rows — no horizontal scroll — so every name stays visible.
  *
- * @param {{ members: object[], filterId: string, onFilter: (id: string) => void }} props
+ * @param {{ members: object[], filterId: string, onFilter: (id: string) => void, now: number }} props
  */
-export default function Roster({ members, filterId, onFilter }) {
+export default function Roster({ members, filterId, onFilter, now }) {
   const reduced = useReducedMotion();
+  const showLowEffortWarning = isPastLowEffortThreshold(now);
 
   return (
     <motion.div
@@ -68,7 +90,7 @@ export default function Roster({ members, filterId, onFilter }) {
       />
 
       {members.map((m) => {
-        const status = statusLine(m);
+        const stats = rosterStatBadges(m, { showLowEffortWarning });
         return (
           <RosterChip
             key={m.id}
@@ -76,10 +98,9 @@ export default function Roster({ members, filterId, onFilter }) {
             selected={filterId === m.id}
             onClick={() => onFilter(m.id)}
             label={m.name}
-            sub={status.text}
-            subClassName={status.className}
+            statBadges={[stats.done, stats.hours]}
             badge={m.badgeCount > 0 ? m.badgeCount : null}
-            ariaLabel={`${m.name}, ${status.text}`}
+            ariaLabel={`${m.name}, ${stats.ariaSummary}${stats.inactive ? ", no tasks today" : ""}`}
             leading={<Avatar member={m} size="xs" ring={false} />}
           />
         );
@@ -94,11 +115,15 @@ function RosterChip({
   onClick,
   label,
   sub,
-  subClassName = "text-ink-500",
+  statBadges,
   leading,
   badge,
   ariaLabel,
 }) {
+  const borderClass = selected
+    ? "border-brand-600 bg-brand-50 shadow-xs"
+    : "border-line bg-surface hover:border-line-strong hover:bg-surface-hover";
+
   return (
     <motion.button
       {...riseItem(reduced)}
@@ -108,20 +133,30 @@ function RosterChip({
       aria-label={ariaLabel || label}
       whileTap={reduced ? undefined : { scale: 0.97 }}
       transition={tFast}
-      className={`relative flex w-full min-w-0 items-center gap-2 rounded-full border py-1 pl-1 pr-2.5 text-left transition-[background-color,border-color,box-shadow] duration-fast ease-smooth sm:pr-3 ${
-        selected
-          ? "border-brand-600 bg-brand-50 shadow-xs"
-          : "border-line bg-surface hover:border-line-strong hover:bg-surface-hover"
-      }`}
+      className={`relative flex w-full min-w-0 items-center gap-2 rounded-full border py-2 pl-1 pr-2.5 text-left transition-[background-color,border-color,box-shadow] duration-fast ease-smooth sm:pr-3 ${borderClass}`}
     >
       {leading}
-      <span className="flex min-w-0 flex-1 flex-col leading-tight">
-        <span className="truncate text-[12px] font-semibold text-ink sm:text-[13px]" title={label}>
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <span className="truncate text-[12px] font-semibold leading-tight text-ink sm:text-[13px]" title={label}>
           {label}
         </span>
-        <span className={`truncate text-2xs ${subClassName}`} title={sub}>
-          {sub}
-        </span>
+        {statBadges ? (
+          <span className="flex flex-wrap items-center gap-1.5" aria-hidden="true">
+            {statBadges.map((chip) => (
+              <Badge
+                key={chip.label}
+                tone={chip.tone}
+                className="!px-1.5 !py-0 tabular-nums"
+              >
+                {chip.label}
+              </Badge>
+            ))}
+          </span>
+        ) : (
+          <span className="truncate text-2xs leading-snug text-ink-500" title={sub}>
+            {sub}
+          </span>
+        )}
       </span>
       {badge != null && (
         <span

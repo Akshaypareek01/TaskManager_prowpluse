@@ -1,9 +1,22 @@
 /**
  * Unit tests for date helpers and analytics (run with node).
  */
-import { localDayStr, addDays, isPastSixPm, localSixPm, validateDueDate } from "../lib/dates.js";
+import {
+  localDayStr,
+  addDays,
+  isPastSixPm,
+  isPastLowEffortThreshold,
+  LOW_EFFORT_THRESHOLD_HOUR,
+  localSixPm,
+  validateDueDate,
+} from "../lib/dates.js";
 import { buildAnalytics, formatDurationMs, taskToApi, derivePendingStatus } from "../lib/analytics.js";
 import { memberTaskCounts } from "../lib/alerts.js";
+import {
+  formatLowEffortAlertText,
+  inactiveMemberNames,
+  isInactiveToday,
+} from "../lib/rosterStats.js";
 import {
   dailyQuoteIndex,
   fnv1aHash,
@@ -45,6 +58,21 @@ test("isPastSixPm before 6pm", () => {
   if (isPastSixPm(noon, day)) throw new Error("should be false before 6pm");
 });
 
+test("isPastLowEffortThreshold before and after 3pm", () => {
+  if (LOW_EFFORT_THRESHOLD_HOUR !== 15) {
+    throw new Error(`expected threshold hour 15, got ${LOW_EFFORT_THRESHOLD_HOUR}`);
+  }
+  const before = new Date(2026, 6, 28, 14, 59, 59);
+  const at = new Date(2026, 6, 28, 15, 0, 0);
+  const after = new Date(2026, 6, 28, 16, 30, 0);
+  if (isPastLowEffortThreshold(before)) throw new Error("should be false before 3pm");
+  if (!isPastLowEffortThreshold(at)) throw new Error("should be true at 3pm");
+  if (!isPastLowEffortThreshold(after)) throw new Error("should be true after 3pm");
+  if (!isPastLowEffortThreshold(after.getTime())) {
+    throw new Error("should accept epoch ms");
+  }
+});
+
 test("formatDurationMs", () => {
   if (formatDurationMs(7200000) !== "2h") throw new Error("bad format");
 });
@@ -79,6 +107,62 @@ test("validateDueDate rejects far future", () => {
   } catch (err) {
     if (!err.message.includes("within")) throw err;
   }
+});
+
+test("isInactiveToday zero tasks and hours", () => {
+  const inactive = {
+    name: "Idle",
+    pendingToday: 0,
+    completedToday: 0,
+    workingHoursMs: 0,
+  };
+  if (!isInactiveToday(inactive)) throw new Error("expected inactive");
+  if (isInactiveToday({ ...inactive, completedToday: 1 })) {
+    throw new Error("completed tasks should not be inactive");
+  }
+  if (isInactiveToday({ ...inactive, workingHoursMs: 60000 })) {
+    throw new Error("logged hours should not be inactive");
+  }
+});
+
+test("inactiveMemberNames and formatLowEffortAlertText", () => {
+  const members = [
+    { name: "Akshay", pendingToday: 0, completedToday: 0, workingHoursMs: 0 },
+    { name: "Bob", pendingToday: 1, completedToday: 0, workingHoursMs: 0 },
+    { name: "Cara", pendingToday: 0, completedToday: 0, workingHoursMs: 0 },
+    { name: "Dan", pendingToday: 0, completedToday: 0, workingHoursMs: 0 },
+    { name: "Eve", pendingToday: 0, completedToday: 0, workingHoursMs: 0 },
+  ];
+  const names = inactiveMemberNames(members);
+  if (names.join(",") !== "Akshay,Cara,Dan,Eve") throw new Error(`names ${names}`);
+  if (formatLowEffortAlertText(names) !== "Akshay, Cara, Dan +1 more") {
+    throw new Error(`truncated ${formatLowEffortAlertText(names)}`);
+  }
+  if (formatLowEffortAlertText(["Only"]) !== "Only") {
+    throw new Error("single name should not truncate");
+  }
+});
+
+test("memberTaskCounts working hours", () => {
+  const tasks = [
+    {
+      memberId: "a",
+      dueDate: "2026-07-27",
+      status: "completed",
+      startTime: new Date(2026, 6, 27, 9, 0),
+      endTime: new Date(2026, 6, 27, 11, 0),
+    },
+    {
+      memberId: "a",
+      dueDate: "2026-07-27",
+      status: "completed",
+      durationMinutes: 30,
+    },
+  ];
+  const now = new Date(2026, 6, 27, 12, 0);
+  const c = memberTaskCounts(tasks, "a", "2026-07-27", now);
+  if (c.completedToday !== 2) throw new Error(`completed ${c.completedToday}`);
+  if (c.workingHoursMs !== 9000000) throw new Error(`hours ${c.workingHoursMs}`);
 });
 
 test("memberTaskCounts checked-in excludes overdue-only", () => {

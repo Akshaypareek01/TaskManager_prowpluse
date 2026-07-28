@@ -26,6 +26,7 @@
 ## Components
 | Component | Path | Notes |
 |-----------|------|-------|
+| Badge | `app/components/ui/Badge.js` | `.badge` + tone classes (`badge-success`, `badge-danger`, etc.); used on TaskCard status and Roster member stat chips |
 | Glass card | `.glass-card` | Frosted panel, border white/10 |
 | Glass card strong | `.glass-card-strong` | Darker solid glass |
 | Primary button | `.btn-primary` | Gradient pill, glow shadow |
