@@ -25,6 +25,7 @@ import {
   buildQuoteSeed,
 } from "../lib/greetings.js";
 import {
+  canViewHourlyJoke,
   findProfileByName,
   filterEligibleJokeProfiles,
   HOURLY_JOKE_EXCLUDED_NAMES,
@@ -354,6 +355,52 @@ test("pickMemberForSlot is deterministic per date+hour", () => {
   }
 });
 
+test("canViewHourlyJoke denies anonymous and excluded viewers", () => {
+  if (canViewHourlyJoke(null)) throw new Error("null user should not view");
+  if (canViewHourlyJoke(undefined)) throw new Error("undefined user should not view");
+  if (canViewHourlyJoke({})) throw new Error("missing id/name should not view");
+  if (canViewHourlyJoke({ id: "u_1" })) throw new Error("missing name should not view");
+
+  if (canViewHourlyJoke({ id: "u_off", name: "Akshay", allowHourlyRoast: false })) {
+    throw new Error("opt-out user should not view hourly roast");
+  }
+
+  for (const name of ["Aanvi", "Rishika", "Ronak Sir", "Ronak Vaya", "Ronak"]) {
+    if (canViewHourlyJoke({ id: "u_ex", name, allowHourlyRoast: true })) {
+      throw new Error(`${name} should not view hourly roast`);
+    }
+  }
+
+  if (!canViewHourlyJoke({ id: "u_ok", name: "Akshay", allowHourlyRoast: true })) {
+    throw new Error("Akshay should view hourly roast when opted in");
+  }
+  if (!canViewHourlyJoke({ id: "u_ok2", name: "Harsh", allowHourlyRoast: true })) {
+    throw new Error("Harsh should view hourly roast when opted in");
+  }
+});
+
+test("resolveJokeProfiles excludes opted-out roster members", () => {
+  if (resolveJokeProfiles([]).length !== 0) {
+    throw new Error("empty roster should yield no joke targets");
+  }
+
+  const allOptedOut = resolveJokeProfiles([
+    { name: "Akshay", allowHourlyRoast: false },
+    { name: "Harsh", allowHourlyRoast: false },
+  ]);
+  if (allOptedOut.length !== 0) {
+    throw new Error("all-opted-out roster should yield no joke targets");
+  }
+
+  const resolved = resolveJokeProfiles([
+    { name: "Akshay", allowHourlyRoast: false },
+    { name: "Harsh", allowHourlyRoast: true },
+  ]);
+  if (resolved.length !== 1 || resolved[0].name !== "Harsh") {
+    throw new Error(`expected only Harsh, got ${resolved.map((p) => p.name).join(",")}`);
+  }
+});
+
 test("hourly joke exclusion list omits Aanvi, Rishika, and Ronak Sir", () => {
   for (const name of HOURLY_JOKE_EXCLUDED_NAMES) {
     if (JOKE_ELIGIBLE_PROFILES.some((p) => p.name === name)) {
@@ -365,10 +412,10 @@ test("hourly joke exclusion list omits Aanvi, Rishika, and Ronak Sir", () => {
   }
 
   const resolved = resolveJokeProfiles([
-    { name: "Aanvi" },
-    { name: "Rishika" },
-    { name: "Ronak Vaya" },
-    { name: "Akshay" },
+    { name: "Aanvi", allowHourlyRoast: true },
+    { name: "Rishika", allowHourlyRoast: true },
+    { name: "Ronak Vaya", allowHourlyRoast: true },
+    { name: "Akshay", allowHourlyRoast: true },
   ]);
   if (resolved.some((p) => HOURLY_JOKE_EXCLUDED_NAMES.has(p.name))) {
     throw new Error("excluded names should not appear in resolved roster profiles");
@@ -395,9 +442,9 @@ test("team profile lookup by roster name", () => {
     throw new Error("Akshay profile missing");
   }
   const resolved = resolveJokeProfiles([
-    { name: "Akshay" },
-    { name: "Unknown Person" },
-    { name: "Harsh" },
+    { name: "Akshay", allowHourlyRoast: true },
+    { name: "Unknown Person", allowHourlyRoast: true },
+    { name: "Harsh", allowHourlyRoast: true },
   ]);
   if (resolved.length !== 2) throw new Error(`expected 2 profiles got ${resolved.length}`);
 });

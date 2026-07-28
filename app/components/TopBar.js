@@ -8,6 +8,39 @@ import Icon from "./ui/Icon";
 import { tFast } from "@/lib/motion";
 
 /**
+ * Compact opt-in switch for hourly roast visibility and targeting.
+ * @param {object} props
+ * @param {boolean} props.checked
+ * @param {boolean} [props.disabled]
+ * @param {(allow: boolean) => void} props.onChange
+ */
+function RoastPreferenceToggle({ checked, disabled = false, onChange }) {
+  return (
+    <label className="hidden items-center gap-2 sm:inline-flex">
+      <span className="text-2xs font-medium text-ink-500">Hourly roast</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label="Hourly roast participation"
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 ${
+          checked ? "bg-accent" : "bg-ink-300"
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-fast ${
+            checked ? "translate-x-4" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
+/**
  * Application header: identity on the left, live clock and the primary action
  * on the right. Sticky, so "New task" is always one click away.
  *
@@ -22,6 +55,7 @@ import { tFast } from "@/lib/motion";
  * @param {boolean} props.refreshing
  * @param {string} [props.lastSyncLabel]
  * @param {object|null} [props.user]
+ * @param {(allow: boolean) => void|Promise<void>} [props.onRoastPreferenceChange]
  */
 export default function TopBar({
   now,
@@ -30,11 +64,35 @@ export default function TopBar({
   refreshing,
   lastSyncLabel,
   user = null,
+  onRoastPreferenceChange,
 }) {
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(false);
+  const [roastSaving, setRoastSaving] = useState(false);
+  const [roastChecked, setRoastChecked] = useState(Boolean(user?.allowHourlyRoast));
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    setRoastChecked(Boolean(user?.allowHourlyRoast));
+  }, [user?.allowHourlyRoast, user?.id]);
+
+  /**
+   * Toggle roast preference with optimistic UI and rollback on failure.
+   * @param {boolean} allow
+   */
+  async function handleRoastToggle(allow) {
+    const previous = roastChecked;
+    setRoastChecked(allow);
+    setRoastSaving(true);
+    try {
+      await onRoastPreferenceChange?.(allow);
+    } catch {
+      setRoastChecked(previous);
+    } finally {
+      setRoastSaving(false);
+    }
+  }
 
   const d = new Date(now);
   const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
@@ -110,9 +168,18 @@ export default function TopBar({
           <span className="hidden h-8 w-px bg-line sm:block" aria-hidden="true" />
 
           {user ? (
-            <span className="hidden max-w-[120px] truncate text-sm font-medium text-ink-700 sm:inline">
-              {user.name}
-            </span>
+            <>
+              {onRoastPreferenceChange ? (
+                <RoastPreferenceToggle
+                  checked={roastChecked}
+                  disabled={roastSaving}
+                  onChange={handleRoastToggle}
+                />
+              ) : null}
+              <span className="hidden max-w-[120px] truncate text-sm font-medium text-ink-700 sm:inline">
+                {user.name}
+              </span>
+            </>
           ) : (
             <>
               <Link href="/sign-in" className="btn btn-secondary btn-sm hidden sm:inline-flex">

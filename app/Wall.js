@@ -18,6 +18,7 @@ import { ToastProvider, useToast } from "./components/ui/Toast";
 import { localDayStr } from "@/lib/dates";
 import { getDailyGreeting } from "@/lib/greetings";
 import { staggerParent, tBase } from "@/lib/motion";
+import { canViewHourlyJoke } from "@/lib/teamProfiles";
 
 const POLL_MS = 20000;
 const QUOTE_SEED_KEY = "prowplus-quote-seed";
@@ -108,6 +109,26 @@ function WallShell({ initialState }) {
       /* Network blip — keep last known auth state. */
     }
   }, []);
+
+  /**
+   * Persist hourly roast opt-in and refresh local user state for Wall gating.
+   * @param {boolean} allow
+   */
+  const handleRoastPreferenceChange = useCallback(
+    async (allow) => {
+      const res = await fetch("/api/auth/roast-preference", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allow }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not update roast preference");
+      }
+      setUser(data.user);
+    },
+    []
+  );
 
   /** Load session on mount. */
   useEffect(() => {
@@ -325,8 +346,15 @@ function WallShell({ initialState }) {
     return `${localDayStr(d)}T${String(d.getHours()).padStart(2, "0")}`;
   }, [Math.floor(now / 3_600_000)]);
 
-  /** Fetch the server-cached hourly joke; hidden outside office hours or on failure. */
+  const mayViewHourlyJoke = authLoaded && Boolean(user) && canViewHourlyJoke(user);
+
+  /** Fetch hourly joke only for eligible signed-in viewers; clear on logout/exclusion. */
   useEffect(() => {
+    if (!mayViewHourlyJoke) {
+      setHourlyJoke(null);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -346,7 +374,7 @@ function WallShell({ initialState }) {
     return () => {
       cancelled = true;
     };
-  }, [hourSlotKey]);
+  }, [hourSlotKey, mayViewHourlyJoke]);
 
   const tabs = [
     { key: "today", label: "Today", icon: "list-checks", count: stats.totalToday },
@@ -369,6 +397,7 @@ function WallShell({ initialState }) {
         refreshing={refreshing}
         lastSyncLabel={lastSyncLabel}
         user={authLoaded ? user : null}
+        onRoastPreferenceChange={user ? handleRoastPreferenceChange : undefined}
       />
 
       <main id="main" className="mx-auto max-w-shell px-4 pb-20 pt-6 sm:px-6 sm:pt-8 lg:px-8">
@@ -402,7 +431,7 @@ function WallShell({ initialState }) {
                 {dailyGreeting.quote}
               </p>
             </aside>
-            {hourlyJoke && (
+            {mayViewHourlyJoke && hourlyJoke && (
               <aside
                 className="relative mt-3 max-w-2xl rounded-r-lg border-l-2 border-amber-400/70 bg-gradient-to-r from-amber-50/35 to-transparent py-2 pl-3.5 pr-1 sm:py-2.5 sm:pl-4"
                 aria-label={`Hourly joke about ${hourlyJoke.memberName}. ${hourlyJoke.joke}`}
