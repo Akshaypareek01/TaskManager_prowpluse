@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import Button from "./ui/Button";
 import Icon from "./ui/Icon";
 import { tFast } from "@/lib/motion";
+import { formatTime12h } from "@/lib/dates";
 
 /**
  * Application header: identity on the left, live clock and the primary action
@@ -39,7 +40,7 @@ export default function TopBar({
   useEffect(() => setMounted(true), []);
 
   const d = new Date(now);
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  const time = formatTime12h(d);
   const date = d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
 
   return (

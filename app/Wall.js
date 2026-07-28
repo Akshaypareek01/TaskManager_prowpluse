@@ -18,6 +18,7 @@ import Button from "./components/ui/Button";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { localDayStr } from "@/lib/dates";
 import { getDailyGreeting } from "@/lib/greetings";
+import { getNextRoastLabel } from "@/lib/hourlyJokes";
 import { staggerParent, tBase } from "@/lib/motion";
 import { canViewHourlyJoke } from "@/lib/teamProfiles";
 
@@ -358,6 +359,9 @@ function WallShell({ initialState }) {
 
   const mayViewHourlyJoke = authLoaded && Boolean(user) && canViewHourlyJoke(user);
 
+  /** Countdown / schedule label for the hourly roast banner (ticks with `now`). */
+  const nextRoastLabel = useMemo(() => getNextRoastLabel(new Date(now)), [now]);
+
   /** Fetch hourly joke only for eligible signed-in viewers; clear on logout/exclusion. */
   useEffect(() => {
     if (!mayViewHourlyJoke) {
@@ -441,25 +445,43 @@ function WallShell({ initialState }) {
                 {dailyGreeting.quote}
               </p>
             </aside>
-            {mayViewHourlyJoke && hourlyJoke && (
+            {mayViewHourlyJoke && (
               <aside
                 className="relative mt-3 max-w-2xl rounded-r-lg border-l-2 border-amber-400/70 bg-gradient-to-r from-amber-50/35 to-transparent py-2 pl-3.5 pr-1 sm:py-2.5 sm:pl-4"
-                aria-label={`Hourly joke about ${hourlyJoke.memberName}. ${hourlyJoke.joke}`}
+                aria-label={
+                  hourlyJoke
+                    ? `Hourly joke about ${hourlyJoke.memberName}. ${hourlyJoke.joke}. ${nextRoastLabel.ariaLabel}`
+                    : nextRoastLabel.ariaLabel
+                }
               >
                 <p className="text-[13px] font-semibold leading-snug text-ink">
                   <span className="mr-1.5 select-none" aria-hidden="true">
                     😂
                   </span>
                   Hourly roast
-                  <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-ink-500">
-                    {hourlyJoke.memberName}
+                  {hourlyJoke && (
+                    <span className="ml-2 text-[11px] font-medium uppercase tracking-wide text-ink-500">
+                      {hourlyJoke.memberName}
+                    </span>
+                  )}
+                  <span
+                    className="ml-2 text-[11px] font-normal normal-case tracking-normal text-ink-500"
+                    suppressHydrationWarning
+                    aria-hidden="true"
+                  >
+                    · {nextRoastLabel.text}
                   </span>
                 </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-600" suppressHydrationWarning>
-                  {hourlyJoke.joke}{" "}
-                  <span className="select-none" aria-hidden="true">
-                    {hourlyJoke.emoji}
-                  </span>
+                {hourlyJoke && (
+                  <p className="mt-1.5 text-sm leading-relaxed text-ink-600" suppressHydrationWarning>
+                    {hourlyJoke.joke}{" "}
+                    <span className="select-none" aria-hidden="true">
+                      {hourlyJoke.emoji}
+                    </span>
+                  </p>
+                )}
+                <p className="sr-only" suppressHydrationWarning>
+                  {nextRoastLabel.ariaLabel}
                 </p>
               </aside>
             )}

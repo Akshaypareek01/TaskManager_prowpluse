@@ -9,6 +9,7 @@ import Icon from "./ui/Icon";
 import { StatusBadge } from "./ui/Badge";
 import { Field, TextInput } from "./ui/Field";
 import { collapse, tFast } from "@/lib/motion";
+import { formatTime12h } from "@/lib/dates";
 
 const MAX_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -275,11 +276,7 @@ export default function TaskCard({
             Completed
             {task.completedAt && (
               <span className="font-normal text-ink-500" suppressHydrationWarning>
-                at{" "}
-                {new Date(task.completedAt).toLocaleTimeString([], {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
+                at {formatTime12h(task.completedAt)}
               </span>
             )}
           </div>

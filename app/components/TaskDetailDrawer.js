@@ -8,6 +8,7 @@ import Button from "./ui/Button";
 import Icon from "./ui/Icon";
 import { StatusBadge } from "./ui/Badge";
 import { tBase, tFast } from "@/lib/motion";
+import { formatDateTime12h } from "@/lib/dates";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -34,15 +35,7 @@ function formatDueDate(dueDate) {
  * @returns {string}
  */
 function formatDateTime(ts) {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleString([], {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatDateTime12h(ts);
 }
 
 /**

@@ -9,6 +9,8 @@ import {
   LOW_EFFORT_THRESHOLD_HOUR,
   localSixPm,
   validateDueDate,
+  formatTime12h,
+  formatDateTime12h,
 } from "../lib/dates.js";
 import { buildAnalytics, formatDurationMs, taskToApi, derivePendingStatus } from "../lib/analytics.js";
 import { memberTaskCounts } from "../lib/alerts.js";
@@ -40,6 +42,7 @@ import {
   buildJokeCacheKey,
   buildJokeUserPrompt,
   getHourSlot,
+  getNextRoastLabel,
   isWithinOfficeHours,
   OFFICE_HOURS_END,
   OFFICE_HOURS_START,
@@ -311,6 +314,58 @@ test("getDailyGreeting returns greeting and quote", () => {
   });
   if (!result.greeting.includes("Alex")) throw new Error("missing name");
   if (!result.quote || !result.emoji) throw new Error("missing quote parts");
+});
+
+test("formatTime12h uses 12-hour clock with AM/PM", () => {
+  const afternoon = new Date(2026, 6, 28, 14, 30);
+  const formatted = formatTime12h(afternoon);
+  if (!formatted.includes("PM") && !formatted.includes("pm")) {
+    throw new Error(`expected PM in ${formatted}`);
+  }
+  if (formatted.includes("14:")) {
+    throw new Error(`expected 12h format, got ${formatted}`);
+  }
+
+  const morning = new Date(2026, 6, 28, 9, 15);
+  const amFormatted = formatTime12h(morning);
+  if (!amFormatted.includes("AM") && !amFormatted.includes("am")) {
+    throw new Error(`expected AM in ${amFormatted}`);
+  }
+
+  if (formatTime12h(null) !== "—") throw new Error("null should em dash");
+});
+
+test("formatDateTime12h includes date and 12-hour time", () => {
+  const ts = new Date(2026, 6, 28, 16, 45);
+  const formatted = formatDateTime12h(ts);
+  if (!formatted.includes("2026") && !formatted.includes("28")) {
+    throw new Error(`expected date parts in ${formatted}`);
+  }
+  if (!formatted.includes("PM") && !formatted.includes("pm")) {
+    throw new Error(`expected PM in ${formatted}`);
+  }
+});
+
+test("getNextRoastLabel office-hour schedule", () => {
+  const before = getNextRoastLabel(new Date(2026, 6, 28, 9, 30));
+  if (!before.text.includes("Roasts start at")) {
+    throw new Error(`before hours: ${before.text}`);
+  }
+
+  const during = getNextRoastLabel(new Date(2026, 6, 28, 14, 18));
+  if (!during.text.includes("Next roast in") && !during.text.includes("New roast at")) {
+    throw new Error(`during hours: ${during.text}`);
+  }
+
+  const lastHour = getNextRoastLabel(new Date(2026, 6, 28, 17, 10));
+  if (!lastHour.text.includes("Back tomorrow")) {
+    throw new Error(`last hour: ${lastHour.text}`);
+  }
+
+  const after = getNextRoastLabel(new Date(2026, 6, 28, 19, 0));
+  if (!after.text.includes("Back tomorrow")) {
+    throw new Error(`after hours: ${after.text}`);
+  }
 });
 
 test("office hours constants", () => {
