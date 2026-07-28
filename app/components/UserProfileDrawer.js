@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Avatar from "./Avatar";
 import Button from "./ui/Button";
+import { useToast } from "./ui/Toast";
 import { tBase, tFast } from "@/lib/motion";
 import { MAX_KEYWORD_LENGTH, MAX_ROAST_KEYWORDS, normalizeRoastKeywords } from "@/lib/roastKeywords";
 import { initials } from "@/lib/team";
@@ -47,9 +48,10 @@ function RoastPreferenceToggle({ checked, disabled = false, onChange }) {
  * @param {object} props
  * @param {string[]} props.keywords
  * @param {boolean} [props.disabled]
+ * @param {boolean} [props.saving]
  * @param {(keywords: string[]) => void} props.onChange
  */
-function RoastKeywordsEditor({ keywords, disabled = false, onChange }) {
+function RoastKeywordsEditor({ keywords, disabled = false, saving = false, onChange }) {
   const [draft, setDraft] = useState("");
 
   /**
@@ -83,8 +85,8 @@ function RoastKeywordsEditor({ keywords, disabled = false, onChange }) {
         Your roast keywords
       </label>
       <p className="mt-1 text-[13px] leading-relaxed text-ink-500">
-        Add up to {MAX_ROAST_KEYWORDS} traits used when you are the joke target. At least one
-        keyword is required to view roasts.
+        Add keywords to guide roasts (optional). Up to {MAX_ROAST_KEYWORDS} traits when you are
+        the joke target.
       </p>
 
       {keywords.length > 0 ? (
@@ -131,7 +133,9 @@ function RoastKeywordsEditor({ keywords, disabled = false, onChange }) {
             type="button"
             variant="secondary"
             size="sm"
-            disabled={disabled || !draft.trim()}
+            loading={saving}
+            loadingLabel="Saving…"
+            disabled={disabled || saving || !draft.trim()}
             onClick={handleAddKeyword}
           >
             Add
@@ -167,10 +171,10 @@ export default function UserProfileDrawer({
   const onCloseRef = useRef(onClose);
   const onRoastPreferenceChangeRef = useRef(onRoastPreferenceChange);
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
   const [roastSaving, setRoastSaving] = useState(false);
   const [roastChecked, setRoastChecked] = useState(Boolean(user?.allowHourlyRoast));
   const [keywords, setKeywords] = useState(() => normalizeRoastKeywords(user?.roastKeywords ?? []));
-  const [keywordsDirty, setKeywordsDirty] = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -184,7 +188,6 @@ export default function UserProfileDrawer({
   useEffect(() => {
     setRoastChecked(Boolean(user?.allowHourlyRoast));
     setKeywords(normalizeRoastKeywords(user?.roastKeywords ?? []));
-    setKeywordsDirty(false);
   }, [user?.allowHourlyRoast, user?.roastKeywords, user?.id]);
 
   /** Stable close handler — avoids re-running the open/lock effect when parents re-render. */
@@ -258,16 +261,19 @@ export default function UserProfileDrawer({
     if (prefs.allow !== undefined) setRoastChecked(prefs.allow);
     if (prefs.keywords !== undefined) {
       setKeywords(normalizeRoastKeywords(prefs.keywords));
-      setKeywordsDirty(false);
     }
 
     setRoastSaving(true);
     try {
       await onRoastPreferenceChangeRef.current?.(prefs);
-    } catch {
+    } catch (err) {
       setRoastChecked(previousAllow);
       setKeywords(previousKeywords);
-      setKeywordsDirty(false);
+      toast({
+        tone: "error",
+        title: "Could not save roast settings",
+        description: err?.message || "Please try again.",
+      });
     } finally {
       setRoastSaving(false);
     }
@@ -285,24 +291,14 @@ export default function UserProfileDrawer({
   }
 
   /**
-   * Save edited keywords while keeping the current toggle state.
-   */
-  async function handleSaveKeywords() {
-    await persistRoastSettings(
-      { allow: roastChecked, keywords },
-      { previousAllow: roastChecked, previousKeywords: keywords }
-    );
-  }
-
-  /**
-   * Track local keyword edits before save.
+   * Add or remove a keyword and persist immediately.
    * @param {string[]} next
    */
-  function handleKeywordsChange(next) {
+  async function handleKeywordsChange(next) {
     const normalized = normalizeRoastKeywords(next);
-    setKeywords(normalized);
-    setKeywordsDirty(
-      JSON.stringify(normalized) !== JSON.stringify(normalizeRoastKeywords(user?.roastKeywords ?? []))
+    await persistRoastSettings(
+      { allow: roastChecked, keywords: normalized },
+      { previousAllow: roastChecked, previousKeywords: keywords }
     );
   }
 
@@ -405,20 +401,9 @@ export default function UserProfileDrawer({
                       <RoastKeywordsEditor
                         keywords={keywords}
                         disabled={roastSaving}
+                        saving={roastSaving}
                         onChange={handleKeywordsChange}
                       />
-                      {keywordsDirty ? (
-                        <div className="mt-4 flex justify-end">
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={roastSaving}
-                            onClick={handleSaveKeywords}
-                          >
-                            Save keywords
-                          </Button>
-                        </div>
-                      ) : null}
                     </>
                   ) : null}
                 </section>

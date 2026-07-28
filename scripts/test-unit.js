@@ -387,7 +387,7 @@ test("session join row exposes user id for roast updates", () => {
   }
 });
 
-test("canViewHourlyJoke requires opt-in, id, name, and keywords", () => {
+test("canViewHourlyJoke requires opt-in, id, and name (keywords optional)", () => {
   if (canViewHourlyJoke(null)) throw new Error("null user should not view");
   if (canViewHourlyJoke(undefined)) throw new Error("undefined user should not view");
   if (canViewHourlyJoke({})) throw new Error("missing id/name should not view");
@@ -397,8 +397,8 @@ test("canViewHourlyJoke requires opt-in, id, name, and keywords", () => {
     throw new Error("opt-out user should not view hourly roast");
   }
 
-  if (canViewHourlyJoke({ id: "u_no_kw", name: "Akshay", allowHourlyRoast: true, roastKeywords: [] })) {
-    throw new Error("opted-in user without keywords should not view hourly roast");
+  if (!canViewHourlyJoke({ id: "u_no_kw", name: "Akshay", allowHourlyRoast: true, roastKeywords: [] })) {
+    throw new Error("opted-in user without keywords should view hourly roast");
   }
 
   if (!canViewHourlyJoke({ id: "u_ok", name: "Akshay", allowHourlyRoast: true, roastKeywords: ["helpful"] })) {
@@ -431,13 +431,17 @@ test("resolveJokeProfiles excludes opted-out roster members", () => {
   }
 });
 
-test("resolveJokeProfiles skips members without keywords", () => {
+test("resolveJokeProfiles includes opted-in members without keywords", () => {
   const resolved = resolveJokeProfiles([
     { name: "Akshay", allowHourlyRoast: true, roastKeywords: [] },
     { name: "Harsh", allowHourlyRoast: true, roastKeywords: ["QA"] },
   ]);
-  if (resolved.length !== 1 || resolved[0].name !== "Harsh") {
-    throw new Error(`expected only Harsh, got ${resolved.map((p) => p.name).join(",")}`);
+  if (resolved.length !== 2) {
+    throw new Error(`expected Akshay and Harsh, got ${resolved.map((p) => p.name).join(",")}`);
+  }
+  const akshay = resolved.find((p) => p.name === "Akshay");
+  if (!akshay || akshay.keywords.length !== 0) {
+    throw new Error("Akshay should be included with empty keywords");
   }
 });
 
@@ -490,7 +494,7 @@ test("roast keyword normalization", () => {
   }
 });
 
-test("buildJokeUserPrompt uses keywords", () => {
+test("buildJokeUserPrompt uses keywords when present", () => {
   const prompt = buildJokeUserPrompt({
     name: "Akshay",
     keywords: ["cool", "helpful"],
@@ -505,6 +509,20 @@ test("buildJokeUserPrompt uses keywords", () => {
     isBoss: true,
   });
   if (!bossPrompt.includes("boss")) throw new Error("boss note missing");
+});
+
+test("buildJokeUserPrompt roasts freely without keywords", () => {
+  const prompt = buildJokeUserPrompt({
+    name: "Akshay",
+    keywords: [],
+    isBoss: false,
+  });
+  if (!prompt.includes("Akshay") || prompt.includes("Personality keywords")) {
+    throw new Error("no-keyword prompt should use name only, not keyword list");
+  }
+  if (!prompt.toLowerCase().includes("no personality keywords")) {
+    throw new Error("no-keyword prompt should indicate free-form roast");
+  }
 });
 
 test("parseJokeResponse", () => {
