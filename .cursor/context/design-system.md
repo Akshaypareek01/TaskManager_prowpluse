@@ -33,6 +33,7 @@
 | Input field | `.input-field` | Dark input with cyan focus |
 | Section label | `.section-label` | Uppercase tracking label |
 | Status pill | `.status-pill.*` | pending/completed/overdue |
+| Daily greeting | `aside` in Wall.js | Left brand accent + faint gradient tint, inline emoji, italic quote |
 
 ## Layout
 - Max width: 1400px centered

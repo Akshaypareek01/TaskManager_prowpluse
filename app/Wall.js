@@ -20,6 +20,25 @@ import { getDailyGreeting } from "@/lib/greetings";
 import { staggerParent, tBase } from "@/lib/motion";
 
 const POLL_MS = 20000;
+const QUOTE_SEED_KEY = "prowplus-quote-seed";
+
+/**
+ * Persistent per-browser seed so guests get unique daily quotes.
+ * @returns {string|null}
+ */
+function getOrCreateViewerSeed() {
+  if (typeof window === "undefined") return null;
+  try {
+    let seed = localStorage.getItem(QUOTE_SEED_KEY);
+    if (!seed) {
+      seed = crypto.randomUUID();
+      localStorage.setItem(QUOTE_SEED_KEY, seed);
+    }
+    return seed;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * "YYYY-MM-DD" -> "Monday, 28 July" without timezone drift.
@@ -64,6 +83,7 @@ function WallShell({ initialState }) {
   const [refreshing, setRefreshing] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(null);
   const [syncError, setSyncError] = useState(false);
+  const [clientSeed] = useState(getOrCreateViewerSeed);
   const inFlight = useRef(false);
 
   /* Clock — 1s tick drives the header time and relative timestamps. */
@@ -287,12 +307,16 @@ function WallShell({ initialState }) {
   const dailyGreeting = useMemo(() => {
     const d = new Date(now);
     const firstName = user?.name?.trim().split(/\s+/)[0] || null;
+    const viewerSeed = user?.id ?? clientSeed;
     return getDailyGreeting({
       now: d,
       userName: authLoaded ? firstName : null,
       userId: user?.id ?? null,
+      email: user?.email ?? null,
+      memberId: user?.memberId ?? null,
+      viewerSeed,
     });
-  }, [now, user?.id, user?.name, authLoaded]);
+  }, [now, user?.id, user?.name, user?.email, user?.memberId, authLoaded, clientSeed]);
 
   const tabs = [
     { key: "today", label: "Today", icon: "list-checks", count: stats.totalToday },
@@ -334,15 +358,20 @@ function WallShell({ initialState }) {
                 </>
               )}
             </p>
-            <p
-              className="mt-1 truncate text-[13px] text-ink-500"
-              suppressHydrationWarning
+            <aside
+              className="relative mt-4 max-w-2xl rounded-r-lg border-l-2 border-brand-600 bg-gradient-to-r from-brand-50/50 to-transparent py-2 pl-3.5 pr-1 sm:py-2.5 sm:pl-4"
               aria-label={`${dailyGreeting.greeting}. ${dailyGreeting.quote}`}
             >
-              <span className="font-medium text-ink-600">{dailyGreeting.greeting}</span>
-              {" · "}
-              <span aria-hidden="true">{dailyGreeting.emoji}</span> {dailyGreeting.quote}
-            </p>
+              <p className="text-[15px] font-semibold leading-snug text-ink" suppressHydrationWarning>
+                <span className="mr-1.5 select-none" aria-hidden="true" suppressHydrationWarning>
+                  {dailyGreeting.emoji}
+                </span>
+                {dailyGreeting.greeting}
+              </p>
+              <p className="mt-1.5 text-sm italic leading-relaxed text-ink-600" suppressHydrationWarning>
+                {dailyGreeting.quote}
+              </p>
+            </aside>
           </div>
         </div>
 

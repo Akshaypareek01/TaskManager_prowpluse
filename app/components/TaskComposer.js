@@ -72,7 +72,6 @@ export default function TaskComposer({
   const reduced = useReducedMotion();
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [dueDate, setDueDate] = useState(today);
   const [busy, setBusy] = useState(false);
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -89,7 +88,6 @@ export default function TaskComposer({
     if (open) return;
     setTitle("");
     setNotes("");
-    setDueDate(today);
     setTouched({});
     setSubmitted(false);
     setServerError("");
@@ -97,8 +95,8 @@ export default function TaskComposer({
   }, [open, today]);
 
   const errors = useMemo(
-    () => validate({ memberId, title, notes, dueDate, today }),
-    [memberId, title, notes, dueDate, today]
+    () => validate({ memberId, title, notes, dueDate: today, today }),
+    [memberId, title, notes, today]
   );
 
   /** Only surface an error once the field was touched or a submit was attempted. */
@@ -120,7 +118,7 @@ export default function TaskComposer({
           memberId,
           title: title.trim(),
           notes: notes.trim(),
-          dueDate,
+          dueDate: today,
         }),
       });
       const data = await res.json();
@@ -238,34 +236,16 @@ export default function TaskComposer({
           />
         </Field>
 
-        <Field label="Due date" required error={shown("dueDate")}>
+        <Field label="Date" required hint="Tasks are always added for today.">
           <TextInput
             type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            onBlur={() => setTouched((p) => ({ ...p, dueDate: true }))}
+            value={today}
+            disabled
+            readOnly
+            aria-readonly="true"
+            tabIndex={-1}
           />
         </Field>
-
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {[
-            { label: "Today", value: today },
-            { label: "Tomorrow", value: addDays(today, 1) },
-          ].map((opt) => (
-            <button
-              key={opt.label}
-              type="button"
-              onClick={() => setDueDate(opt.value)}
-              className={`rounded-md border px-2 py-1 text-2xs font-semibold transition-colors duration-fast ${
-                dueDate === opt.value
-                  ? "border-brand-600 bg-brand-50 text-brand-700"
-                  : "border-line bg-surface text-ink-600 hover:border-line-strong hover:text-ink"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
 
         {serverError && (
           <motion.p

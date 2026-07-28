@@ -4,6 +4,12 @@
 import { localDayStr, addDays, isPastSixPm, localSixPm, validateDueDate } from "../lib/dates.js";
 import { buildAnalytics, formatDurationMs, taskToApi, derivePendingStatus } from "../lib/analytics.js";
 import { memberTaskCounts } from "../lib/alerts.js";
+import {
+  dailyQuoteIndex,
+  fnv1aHash,
+  getDailyGreeting,
+  buildQuoteSeed,
+} from "../lib/greetings.js";
 
 let passed = 0;
 let failed = 0;
@@ -124,6 +130,49 @@ test("memberTaskCounts excludes backlog from overdue badge", () => {
   if (c.overdueCount !== 0) throw new Error(`overdue ${c.overdueCount}`);
   if (c.backlogCount !== 1) throw new Error(`backlog ${c.backlogCount}`);
   if (c.badgeCount !== 0) throw new Error(`badge ${c.badgeCount}`);
+});
+
+test("fnv1aHash is stable and well-distributed", () => {
+  const a = fnv1aHash("2026-07-28:user-a:morning");
+  const b = fnv1aHash("2026-07-28:user-a:morning");
+  const c = fnv1aHash("2026-07-28:user-b:morning");
+  if (a !== b) throw new Error("hash should be stable");
+  if (a === c) throw new Error("different seeds should differ");
+});
+
+test("dailyQuoteIndex differs per viewerSeed", () => {
+  const dateKey = "2026-07-28";
+  const bucket = "morning";
+  const poolLength = 40;
+  const guestA = dailyQuoteIndex(dateKey, bucket, poolLength, { viewerSeed: "seed-a" });
+  const guestB = dailyQuoteIndex(dateKey, bucket, poolLength, { viewerSeed: "seed-b" });
+  if (guestA === guestB) throw new Error("guests should get different indices");
+});
+
+test("dailyQuoteIndex stable for same identity per day", () => {
+  const identity = { viewerSeed: "user-1", email: "a@b.com", memberId: "m1" };
+  const i1 = dailyQuoteIndex("2026-07-28", "afternoon", 40, identity);
+  const i2 = dailyQuoteIndex("2026-07-28", "afternoon", 40, identity);
+  if (i1 !== i2) throw new Error("same day + identity should match");
+  const i3 = dailyQuoteIndex("2026-07-29", "afternoon", 40, identity);
+  if (i1 === i3) throw new Error("different days should usually differ");
+});
+
+test("buildQuoteSeed combines identity fields", () => {
+  const seed = buildQuoteSeed({ viewerSeed: "u1", email: "x@y.com", memberId: "m1" });
+  if (seed !== "u1:x@y.com:m1") throw new Error(`bad seed ${seed}`);
+});
+
+test("getDailyGreeting returns greeting and quote", () => {
+  const result = getDailyGreeting({
+    now: new Date(2026, 6, 28, 9, 0),
+    userName: "Alex",
+    viewerSeed: "viewer-abc",
+    email: "alex@example.com",
+    memberId: "mem-1",
+  });
+  if (!result.greeting.includes("Alex")) throw new Error("missing name");
+  if (!result.quote || !result.emoji) throw new Error("missing quote parts");
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
