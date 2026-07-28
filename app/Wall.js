@@ -16,6 +16,7 @@ import Icon from "./components/ui/Icon";
 import Button from "./components/ui/Button";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { localDayStr } from "@/lib/dates";
+import { getDailyGreeting } from "@/lib/greetings";
 import { staggerParent, tBase } from "@/lib/motion";
 
 const POLL_MS = 20000;
@@ -282,6 +283,17 @@ function WallShell({ initialState }) {
     return `${mins}m ago`;
   }, [lastSyncAt, now]);
 
+  /** Daily-stable greeting + quote; recomputes on hour boundary or auth change. */
+  const dailyGreeting = useMemo(() => {
+    const d = new Date(now);
+    const firstName = user?.name?.trim().split(/\s+/)[0] || null;
+    return getDailyGreeting({
+      now: d,
+      userName: authLoaded ? firstName : null,
+      userId: user?.id ?? null,
+    });
+  }, [now, user?.id, user?.name, authLoaded]);
+
   const tabs = [
     { key: "today", label: "Today", icon: "list-checks", count: stats.totalToday },
     {
@@ -321,6 +333,15 @@ function WallShell({ initialState }) {
                   tasks completed
                 </>
               )}
+            </p>
+            <p
+              className="mt-1 truncate text-[13px] text-ink-500"
+              suppressHydrationWarning
+              aria-label={`${dailyGreeting.greeting}. ${dailyGreeting.quote}`}
+            >
+              <span className="font-medium text-ink-600">{dailyGreeting.greeting}</span>
+              {" · "}
+              <span aria-hidden="true">{dailyGreeting.emoji}</span> {dailyGreeting.quote}
             </p>
           </div>
         </div>
