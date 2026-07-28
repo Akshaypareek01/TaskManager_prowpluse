@@ -12,6 +12,7 @@ import {
 } from "../lib/dates.js";
 import { buildAnalytics, formatDurationMs, taskToApi, derivePendingStatus } from "../lib/analytics.js";
 import { memberTaskCounts } from "../lib/alerts.js";
+import { isBossMember, BOSS_MEMBER_NAME } from "../lib/members.js";
 import {
   formatLowEffortAlertText,
   inactiveMemberNames,
@@ -123,6 +124,37 @@ test("isInactiveToday zero tasks and hours", () => {
   if (isInactiveToday({ ...inactive, workingHoursMs: 60000 })) {
     throw new Error("logged hours should not be inactive");
   }
+});
+
+test("isBossMember and boss exclusion from low-effort", () => {
+  if (BOSS_MEMBER_NAME !== "Ronak Vaya") {
+    throw new Error(`unexpected boss name ${BOSS_MEMBER_NAME}`);
+  }
+  if (!isBossMember({ name: "Ronak Vaya" })) {
+    throw new Error("should match boss by name");
+  }
+  if (!isBossMember({ name: "Ronak Vaya " })) {
+    throw new Error("should trim name before match");
+  }
+  if (isBossMember({ name: "Akshay" })) throw new Error("non-boss should not match");
+
+  const boss = {
+    name: BOSS_MEMBER_NAME,
+    pendingToday: 0,
+    completedToday: 0,
+    workingHoursMs: 0,
+  };
+  if (isInactiveToday(boss)) throw new Error("boss should never be inactive");
+
+  const members = [
+    boss,
+    { name: "Akshay", pendingToday: 0, completedToday: 0, workingHoursMs: 0 },
+  ];
+  const names = inactiveMemberNames(members);
+  if (names.includes(BOSS_MEMBER_NAME)) {
+    throw new Error("boss should not appear in inactive names");
+  }
+  if (names.join(",") !== "Akshay") throw new Error(`names ${names}`);
 });
 
 test("inactiveMemberNames and formatLowEffortAlertText", () => {

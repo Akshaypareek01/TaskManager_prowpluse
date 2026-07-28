@@ -6,6 +6,7 @@ import Icon from "./ui/Icon";
 import Badge from "./ui/Badge";
 import { formatDurationMs } from "@/lib/analytics";
 import { isPastLowEffortThreshold } from "@/lib/dates";
+import { isBossMember } from "@/lib/members";
 import {
   formatLowEffortAlertText,
   inactiveMemberNames,
@@ -38,11 +39,20 @@ export function LowEffortAlert({ members, now }) {
 
 /**
  * Build badge configs for roster stat chips (pending, done, working hours).
+ * Boss members show a single "Boss" badge instead of activity stats.
  * @param {object} m
  * @param {{ showLowEffortWarning: boolean }} opts
- * @returns {{ pending: { label: string, tone: string }, done: { label: string, tone: string }, hours: { label: string, tone: string }, ariaSummary: string, inactive: boolean }}
+ * @returns {{ badges: { label: string, tone: string }[], ariaSummary: string, inactive: boolean }}
  */
 function rosterStatBadges(m, { showLowEffortWarning }) {
+  if (isBossMember(m)) {
+    return {
+      badges: [{ label: "Boss", tone: "neutral" }],
+      ariaSummary: "Boss",
+      inactive: false,
+    };
+  }
+
   const inactive = isInactiveToday(m);
   const hours = formatDurationMs(m.workingHoursMs) || "0m";
   const pendingCount = m.pendingToday ?? 0;
@@ -55,9 +65,11 @@ function rosterStatBadges(m, { showLowEffortWarning }) {
   const hoursTone = warnInactive ? "danger" : "neutral";
 
   return {
-    pending: { label: pendingLabel, tone: pendingTone },
-    done: { label: doneLabel, tone: doneTone },
-    hours: { label: hours, tone: hoursTone },
+    badges: [
+      { label: pendingLabel, tone: pendingTone },
+      { label: doneLabel, tone: doneTone },
+      { label: hours, tone: hoursTone },
+    ],
     ariaSummary: `${pendingLabel}, ${doneLabel}, ${hours} working`,
     inactive: warnInactive,
   };
@@ -102,7 +114,7 @@ export default function Roster({ members, filterId, onFilter, now }) {
             selected={filterId === m.id}
             onClick={() => onFilter(m.id)}
             label={m.name}
-            statBadges={[stats.pending, stats.done, stats.hours]}
+            statBadges={stats.badges}
             badge={m.badgeCount > 0 ? m.badgeCount : null}
             ariaLabel={`${m.name}, ${stats.ariaSummary}${stats.inactive ? ", very low effort today" : ""}`}
             leading={<Avatar member={m} size="xs" ring={false} />}
