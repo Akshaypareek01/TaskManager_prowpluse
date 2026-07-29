@@ -116,14 +116,14 @@ export default function SignInForm() {
     <div className="panel mx-auto w-full max-w-md p-6 sm:p-8">
       <div className="mb-6 flex items-center gap-3">
         <img
-          src="https://prowplus.ai/pp_icons.png"
-          alt=""
+          src="/pp-icon.png"
+          alt="PROWPLUS"
           width={40}
           height={40}
           className="h-10 w-10 rounded-lg border border-line bg-surface object-contain p-1"
         />
         <div>
-          <h1 className="text-lg font-semibold">Impact Wall</h1>
+          <h1 className="text-lg font-semibold">AI Impact Wall</h1>
           <p className="text-xs text-ink-500">Sign in to add and complete tasks</p>
         </div>
       </div>

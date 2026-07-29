@@ -11,6 +11,12 @@ import {
   validateDueDate,
   formatTime12h,
   formatDateTime12h,
+  toDatetimeLocalValue,
+  parseDatetimeLocalValue,
+  buildLocalDateTime,
+  epochToPickerParts,
+  pickerPartsToEpoch,
+  snapMinuteToQuarter,
 } from "../lib/dates.js";
 import { buildAnalytics, formatDurationMs, taskToApi, derivePendingStatus } from "../lib/analytics.js";
 import { memberTaskCounts } from "../lib/alerts.js";
@@ -357,6 +363,71 @@ test("formatDateTime12h includes date and 12-hour time", () => {
   if (!formatted.includes("PM") && !formatted.includes("pm")) {
     throw new Error(`expected PM in ${formatted}`);
   }
+});
+
+test("toDatetimeLocalValue and parseDatetimeLocalValue round-trip local minutes", () => {
+  const ts = new Date(2026, 6, 29, 11, 4, 59, 500);
+  const value = toDatetimeLocalValue(ts);
+  if (value !== "2026-07-29T11:04") {
+    throw new Error(`expected minute truncation, got ${value}`);
+  }
+
+  const parsed = parseDatetimeLocalValue(value);
+  const expected = new Date(2026, 6, 29, 11, 4, 0, 0).getTime();
+  if (parsed !== expected) {
+    throw new Error(`round-trip mismatch: ${parsed} !== ${expected}`);
+  }
+
+  if (!Number.isNaN(parseDatetimeLocalValue("2026-02-30T12:00"))) {
+    throw new Error("invalid calendar day should be NaN");
+  }
+  if (!Number.isNaN(parseDatetimeLocalValue("not-a-date"))) {
+    throw new Error("garbage input should be NaN");
+  }
+});
+
+test("parseDatetimeLocalValue rejects values with timezone suffix", () => {
+  if (!Number.isNaN(parseDatetimeLocalValue("2026-07-29T11:04:00Z"))) {
+    throw new Error("timezone suffix should not parse as datetime-local");
+  }
+});
+
+test("buildLocalDateTime 12-hour parts to epoch ms", () => {
+  const ms = buildLocalDateTime("2026-07-29", 2, 30, "PM");
+  const expected = new Date(2026, 6, 29, 14, 30, 0, 0).getTime();
+  if (ms !== expected) throw new Error(`2:30 PM mismatch: ${ms} !== ${expected}`);
+
+  const noon = buildLocalDateTime("2026-07-29", 12, 0, "PM");
+  if (noon !== new Date(2026, 6, 29, 12, 0, 0, 0).getTime()) {
+    throw new Error("12 PM should be hour 12");
+  }
+
+  const midnight = buildLocalDateTime("2026-07-29", 12, 0, "AM");
+  if (midnight !== new Date(2026, 6, 29, 0, 0, 0, 0).getTime()) {
+    throw new Error("12 AM should be hour 0");
+  }
+
+  if (!Number.isNaN(buildLocalDateTime("2026-02-30", 1, 0, "AM"))) {
+    throw new Error("invalid date should be NaN");
+  }
+});
+
+test("epochToPickerParts and pickerPartsToEpoch round-trip", () => {
+  const ts = new Date(2026, 6, 29, 9, 47).getTime();
+  const parts = epochToPickerParts(ts);
+  if (!parts || parts.hour12 !== 9 || parts.minute !== 45 || parts.ampm !== "AM") {
+    throw new Error(`bad parts ${JSON.stringify(parts)}`);
+  }
+
+  const back = pickerPartsToEpoch(parts);
+  const expected = new Date(2026, 6, 29, 9, 45, 0, 0).getTime();
+  if (back !== expected) throw new Error(`round-trip ${back} !== ${expected}`);
+});
+
+test("snapMinuteToQuarter", () => {
+  if (snapMinuteToQuarter(7) !== 0) throw new Error("7 -> 0");
+  if (snapMinuteToQuarter(8) !== 15) throw new Error("8 -> 15");
+  if (snapMinuteToQuarter(52) !== 45) throw new Error("52 -> 45");
 });
 
 test("getNextRoastLabel office-hour schedule", () => {

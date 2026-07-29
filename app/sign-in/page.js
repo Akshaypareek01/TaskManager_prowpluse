@@ -2,8 +2,8 @@ import { Suspense } from "react";
 import SignInForm from "./SignInForm";
 
 export const metadata = {
-  title: "Sign in · Impact Wall",
-  description: "Sign in with email to add and complete tasks on the PROWPLUS Impact Wall.",
+  title: "Sign in · AI Impact Wall",
+  description: "Sign in with email to add and complete tasks on the PROWPLUS AI Impact Wall.",
 };
 
 /**

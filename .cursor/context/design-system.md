@@ -37,6 +37,7 @@
 | Daily greeting | `aside` in Wall.js | Left brand accent + faint gradient tint, inline emoji, italic quote |
 | User profile drawer | `app/components/UserProfileDrawer.js` | Right-side panel; account info + hourly roast toggle |
 | Task detail drawer | `app/components/TaskDetailDrawer.js` | Right-side panel; task metadata |
+| Task time picker | `app/components/TaskTimePicker.js` | Date + 12h quarter-hour selects + AM/PM toggle for task completion |
 
 ## Layout
 - Max width: 1400px centered

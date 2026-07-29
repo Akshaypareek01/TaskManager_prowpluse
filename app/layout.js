@@ -15,7 +15,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata = {
-  title: "Impact Wall · PROWPLUS",
+  title: "AI Impact Wall · PROWPLUS",
   description: "The team's daily task wall — today's work, alerts, history and analytics.",
 };
 

@@ -49,14 +49,14 @@ export default function TopBar({
         {/* Identity */}
         <div className="flex min-w-0 items-center gap-3">
           <img
-            src="https://prowplus.ai/pp_icons.png"
-            alt=""
+            src="/pp-icon.png"
+            alt="PROWPLUS"
             width={36}
             height={36}
             className="h-9 w-9 shrink-0 rounded-lg border border-line bg-surface object-contain p-1"
           />
           <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-semibold leading-tight">Impact Wall</h1>
+            <h1 className="truncate text-[15px] font-semibold leading-tight">AI Impact Wall</h1>
             <p className="hidden truncate text-2xs text-ink-500 sm:block">
               PROWPLUS · daily team tasks
             </p>

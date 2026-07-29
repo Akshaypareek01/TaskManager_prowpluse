@@ -7,23 +7,40 @@ import Avatar from "./Avatar";
 import Button from "./ui/Button";
 import Icon from "./ui/Icon";
 import { StatusBadge } from "./ui/Badge";
-import { Field, TextInput } from "./ui/Field";
 import { collapse, tFast } from "@/lib/motion";
-import { formatTime12h } from "@/lib/dates";
+import {
+  epochToPickerParts,
+  formatDateTime12h,
+  formatTime12h,
+  localDayStr,
+  pickerPartsToEpoch,
+} from "@/lib/dates";
+import TaskTimePicker from "./TaskTimePicker";
 
 const MAX_DURATION_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_DURATION_MS = 60 * 60 * 1000;
+
+/** @typedef {{ date: string, hour12: number, minute: number, ampm: "AM"|"PM" }} PickerParts */
+
+/** Preset durations shown above the time pickers. */
+const DURATION_PRESETS = [
+  { label: "30 min", minutes: 30 },
+  { label: "1 hr", minutes: 60 },
+  { label: "2 hr", minutes: 120 },
+  { label: "3 hr", minutes: 180 },
+];
 
 /**
- * Epoch ms -> value for <input type="datetime-local">.
- * @param {number} ts
- * @returns {string}
+ * @param {number} ms
+ * @returns {PickerParts}
  */
-function toInputValue(ts) {
-  const d = new Date(ts);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
-    d.getMinutes()
-  )}`;
+function msToPickerParts(ms) {
+  return epochToPickerParts(ms) || {
+    date: localDayStr(new Date()),
+    hour12: 12,
+    minute: 0,
+    ampm: "PM",
+  };
 }
 
 /**
@@ -89,8 +106,13 @@ export default function TaskCard({
 }) {
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(defaultOpen);
-  const [startTime, setStartTime] = useState(() => toInputValue(Date.now() - 3600000));
-  const [endTime, setEndTime] = useState(() => toInputValue(Date.now()));
+  const [startParts, setStartParts] = useState(() =>
+    msToPickerParts(Date.now() - DEFAULT_DURATION_MS)
+  );
+  const [endParts, setEndParts] = useState(() => msToPickerParts(Date.now()));
+  /** Stable upper bound — refreshed on open/preset, not every render. */
+  const [maxMs, setMaxMs] = useState(() => Date.now());
+  const [activePresetMin, setActivePresetMin] = useState(60);
   const [busy, setBusy] = useState(false);
   const [touched, setTouched] = useState({});
   const [attempted, setAttempted] = useState(false);
@@ -102,20 +124,25 @@ export default function TaskCard({
   const isLate = isOverdue || isBacklog;
 
   /** Live validation — drives both the inline errors and the duration preview. */
+  const maxDate = useMemo(() => localDayStr(new Date(maxMs)), [maxMs]);
+
   const validation = useMemo(() => {
-    const start = new Date(startTime).getTime();
-    const end = new Date(endTime).getTime();
+    const start = pickerPartsToEpoch(startParts);
+    const end = pickerPartsToEpoch(endParts);
+    const nowCeiling = maxMs + 59999;
     const next = {};
 
-    if (!startTime || Number.isNaN(start)) next.start = "Pick a valid start time.";
-    if (!endTime || Number.isNaN(end)) next.end = "Pick a valid end time.";
+    if (!startParts.date || Number.isNaN(start)) next.start = "Pick a valid start date and time.";
+    if (!endParts.date || Number.isNaN(end)) next.end = "Pick a valid end date and time.";
 
     if (!next.start && !next.end) {
-      if (end <= start) {
+      if (start > nowCeiling) {
+        next.start = "Start time cannot be in the future.";
+      } else if (end <= start) {
         next.end = "End time must be after the start time.";
       } else if (end - start > MAX_DURATION_MS) {
         next.end = "That is over 24 hours — check the dates.";
-      } else if (end > Date.now() + 60000) {
+      } else if (end > nowCeiling) {
         next.end = "End time cannot be in the future.";
       }
     }
@@ -124,8 +151,10 @@ export default function TaskCard({
       errors: next,
       valid: Object.keys(next).length === 0,
       durationLabel: !next.start && !next.end ? humanDuration(end - start) : null,
+      startHint: !next.start ? formatDateTime12h(start) : null,
+      endHint: !next.end ? formatDateTime12h(end) : null,
     };
-  }, [startTime, endTime]);
+  }, [startParts, endParts, maxMs]);
 
   /**
    * Errors are derived from live state rather than copied into their own
@@ -134,14 +163,38 @@ export default function TaskCard({
    */
   const shown = (key) => (attempted || touched[key] ? validation.errors[key] : undefined);
 
-  /** Sets start relative to now — covers the common "I just finished" case. */
-  function applyPreset(minutes) {
+  /**
+   * Refresh default times and the stable max bound when the complete form opens.
+   * @param {number} [durationMs]
+   */
+  function seedCompleteTimes(durationMs = DEFAULT_DURATION_MS) {
     const now = Date.now();
-    setStartTime(toInputValue(now - minutes * 60000));
-    setEndTime(toInputValue(now));
+    setStartParts(msToPickerParts(now - durationMs));
+    setEndParts(msToPickerParts(now));
+    setMaxMs(now);
+    setActivePresetMin(durationMs / 60000);
+  }
+
+  /** Opens the inline complete form with fresh local defaults. */
+  function openCompleteForm() {
+    seedCompleteTimes();
     setTouched({});
     setAttempted(false);
     setFormError("");
+    setOpen(true);
+  }
+
+  /** Sets start relative to now — covers the common "I just finished" case. */
+  function applyPreset(minutes) {
+    seedCompleteTimes(minutes * 60000);
+    setTouched({});
+    setAttempted(false);
+    setFormError("");
+  }
+
+  /** User edited times manually — clears preset highlight. */
+  function markCustomTime() {
+    setActivePresetMin(null);
   }
 
   async function submitComplete() {
@@ -153,8 +206,8 @@ export default function TaskCard({
     try {
       await onComplete(
         task.id,
-        new Date(startTime).getTime(),
-        new Date(endTime).getTime()
+        pickerPartsToEpoch(startParts),
+        pickerPartsToEpoch(endParts)
       );
       setOpen(false);
       setTouched({});
@@ -242,7 +295,7 @@ export default function TaskCard({
           </span>
           <div className="flex shrink-0 items-center gap-1.5">
             {canComplete ? (
-              <Button size="sm" variant="secondary" iconLeft="check" onClick={() => setOpen(true)}>
+              <Button size="sm" variant="secondary" iconLeft="check" onClick={openCompleteForm}>
                 Mark complete
               </Button>
             ) : !isAuthenticated ? (
@@ -303,41 +356,61 @@ export default function TaskCard({
             <div className="bg-surface-hover px-4 py-3.5">
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
                 <span className="eyebrow mr-1">Worked for</span>
-                {[30, 60, 120].map((m) => (
+                {DURATION_PRESETS.map(({ label, minutes }) => (
                   <button
-                    key={m}
+                    key={minutes}
                     type="button"
-                    onClick={() => applyPreset(m)}
-                    className="rounded-md border border-line bg-surface px-2 py-1 text-2xs font-semibold text-ink-600 transition-colors duration-fast hover:border-brand-600 hover:text-brand-600"
+                    onClick={() => applyPreset(minutes)}
+                    aria-pressed={activePresetMin === minutes}
+                    className={`rounded-md border px-2.5 py-1.5 text-2xs font-semibold transition-colors duration-fast ${
+                      activePresetMin === minutes
+                        ? "border-brand-600 bg-brand-50 text-brand-600"
+                        : "border-line bg-surface text-ink-600 hover:border-brand-600 hover:text-brand-600"
+                    }`}
                   >
-                    {m < 60 ? `${m}m` : `${m / 60}h`}
+                    {label}
                   </button>
                 ))}
               </div>
 
-              {/* Single column: the card sits in a 3-up grid, so a viewport
-                  breakpoint can't tell us how wide it actually is, and a
-                  half-width datetime input clips its own value. */}
+              <p className="mb-3 text-2xs leading-relaxed text-ink-500">
+                Pick a quick duration above, or set when you started and finished below.
+              </p>
+
+              {/* Single column: card sits in a 3-up grid — keep fields full width. */}
               <div className="grid gap-3">
-                <Field label="Started" error={shown("start")}>
-                  <TextInput
-                    type="datetime-local"
-                    value={startTime}
-                    max={toInputValue(Date.now())}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    onBlur={() => setTouched((p) => ({ ...p, start: true }))}
-                    className="text-[13px]"
-                  />
-                </Field>
-                <Field label="Finished" error={shown("end")}>
-                  <TextInput
-                    type="datetime-local"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    onBlur={() => setTouched((p) => ({ ...p, end: true }))}
-                    className="text-[13px]"
-                  />
-                </Field>
+                <TaskTimePicker
+                  label="Start"
+                  value={startParts}
+                  maxDate={maxDate}
+                  error={shown("start")}
+                  hint={
+                    validation.startHint
+                      ? `${validation.startHint} — when you began this task`
+                      : "When you began this task"
+                  }
+                  onChange={(next) => {
+                    markCustomTime();
+                    setStartParts(next);
+                  }}
+                  onBlur={() => setTouched((p) => ({ ...p, start: true }))}
+                />
+                <TaskTimePicker
+                  label="End"
+                  value={endParts}
+                  maxDate={maxDate}
+                  error={shown("end")}
+                  hint={
+                    validation.endHint
+                      ? `${validation.endHint} — when you finished (must be now or earlier)`
+                      : "When you finished — must be now or earlier"
+                  }
+                  onChange={(next) => {
+                    markCustomTime();
+                    setEndParts(next);
+                  }}
+                  onBlur={() => setTouched((p) => ({ ...p, end: true }))}
+                />
               </div>
 
               <AnimatePresence>
