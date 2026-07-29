@@ -24,6 +24,7 @@ import { formatTime12h } from "@/lib/dates";
  * @param {string} [props.lastSyncLabel]
  * @param {object|null} [props.user]
  * @param {() => void} [props.onOpenProfile]
+ * @param {() => void} [props.onAnnounce]
  */
 export default function TopBar({
   now,
@@ -33,6 +34,7 @@ export default function TopBar({
   lastSyncLabel,
   user = null,
   onOpenProfile,
+  onAnnounce,
 }) {
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(false);
@@ -97,6 +99,38 @@ export default function TopBar({
             </motion.span>
             {refreshing ? "Syncing" : lastSyncLabel || "Live"}
           </button>
+
+          {user && onAnnounce && (
+            <>
+              <motion.button
+                type="button"
+                onClick={onAnnounce}
+                aria-label="Post team announcement"
+                title="Post team announcement"
+                className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-danger-border/50 bg-danger-bg text-danger-fg transition-colors duration-fast hover:bg-danger-bg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-fg/40"
+                animate={
+                  reduced
+                    ? undefined
+                    : {
+                        scale: [1, 1.08, 1],
+                        boxShadow: [
+                          "0 0 0 0 rgba(239,68,68,0)",
+                          "0 0 0 6px rgba(239,68,68,0.15)",
+                          "0 0 0 0 rgba(239,68,68,0)",
+                        ],
+                      }
+                }
+                transition={
+                  reduced
+                    ? undefined
+                    : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+                }
+              >
+                <Icon name="megaphone" size={16} />
+              </motion.button>
+              <span className="hidden h-8 w-px bg-line sm:block" aria-hidden="true" />
+            </>
+          )}
 
           <Button variant="primary" iconLeft="plus" onClick={onAddTask} className="hidden sm:inline-flex">
             New task

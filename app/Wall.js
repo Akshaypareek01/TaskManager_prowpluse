@@ -13,6 +13,7 @@ import HistoryTab from "./components/HistoryTab";
 import RankTab from "./components/RankTab";
 import ReportsTab from "./components/ReportsTab";
 import TaskComposer from "./components/TaskComposer";
+import AnnouncementComposer from "./components/AnnouncementComposer";
 import TaskDetailDrawer from "./components/TaskDetailDrawer";
 import UserProfileDrawer from "./components/UserProfileDrawer";
 import HourlyRoastBanner from "./components/HourlyRoastBanner";
@@ -85,6 +86,7 @@ function WallShell({ initialState }) {
   const [filterId, setFilterId] = useState("all");
   const [now, setNow] = useState(() => Date.now());
   const [composerOpen, setComposerOpen] = useState(false);
+  const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -224,6 +226,22 @@ function WallShell({ initialState }) {
         tone: "success",
         title: "Task added",
         description: meta?.memberName ? `Posted for ${meta.memberName}.` : undefined,
+      });
+    },
+    [toast]
+  );
+
+  const handleAnnouncementPosted = useCallback(
+    (nextState) => {
+      setState(nextState);
+      setLastSyncAt(Date.now());
+      setSyncError(false);
+      setAnnouncementOpen(false);
+      setTab("alerts");
+      toast({
+        tone: "success",
+        title: "Announcement posted",
+        description: "The whole team will see it in Alerts.",
       });
     },
     [toast]
@@ -385,6 +403,7 @@ function WallShell({ initialState }) {
         lastSyncLabel={lastSyncLabel}
         user={authLoaded ? user : null}
         onOpenProfile={user ? openProfile : undefined}
+        onAnnounce={user ? () => setAnnouncementOpen(true) : undefined}
       />
 
       <main id="main" className="mx-auto max-w-shell px-4 pb-20 pt-6 sm:px-6 sm:pt-8 lg:px-8">
@@ -603,6 +622,14 @@ function WallShell({ initialState }) {
         lockedMemberId={user?.memberId ?? null}
         onSessionExpired={handleSessionExpired}
         onPosted={handleTaskPosted}
+      />
+
+      <AnnouncementComposer
+        open={announcementOpen}
+        onClose={() => setAnnouncementOpen(false)}
+        user={user}
+        onPosted={handleAnnouncementPosted}
+        onSessionExpired={handleSessionExpired}
       />
 
       <TaskDetailDrawer

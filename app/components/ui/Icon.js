@@ -99,6 +99,13 @@ const PATHS = {
       <path d="M11 6.5h10M11 17.5h10M11 12h10" />
     </>
   ),
+  megaphone: (
+    <>
+      <path d="m11 6 7-2v12l-7-2V6Z" />
+      <path d="M11 6a3 3 0 1 0 6 0v6a3 3 0 1 0-6 0V6Z" />
+      <path d="M6 10v4" />
+    </>
+  ),
   sparkle: (
     <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z" />
   ),

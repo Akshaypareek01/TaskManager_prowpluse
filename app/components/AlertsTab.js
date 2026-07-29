@@ -25,6 +25,11 @@ const ALERT_META = {
     icon: "alert-triangle",
     ring: "bg-danger-bg text-danger-fg",
   },
+  announcement: {
+    label: "Announcement",
+    icon: "megaphone",
+    ring: "bg-orange-100 text-orange-700",
+  },
 };
 
 const FALLBACK_META = { label: "Update", icon: "sparkle", ring: "bg-info-bg text-info-fg" };
@@ -58,8 +63,14 @@ function relTime(ts, now) {
  * @returns {object[]}
  */
 function filterByMember(list, filterId) {
+  const announcements = list.filter((a) => a.type === "announcement");
   if (filterId === "all") return list;
-  return list.filter((a) => a.member?.id === filterId);
+  const memberAlerts = list.filter(
+    (a) => a.type !== "announcement" && a.member?.id === filterId
+  );
+  return [...announcements, ...memberAlerts].sort(
+    (a, b) => b.createdAt - a.createdAt
+  );
 }
 
 /**
@@ -233,6 +244,7 @@ export default function AlertsTab({
       >
         {visibleAlerts.map((a) => {
           const meta = ALERT_META[a.type] || FALLBACK_META;
+          const isAnnouncement = a.type === "announcement";
           const linkedTask = a.taskId && a.type === "overdue" ? taskById[a.taskId] : null;
           const canComplete =
             linkedTask &&
@@ -249,13 +261,25 @@ export default function AlertsTab({
             <motion.li key={a.id} {...riseItem(reduced)}>
               <article
                 className={`card relative overflow-hidden ${
-                  !a.read ? "ring-1 ring-danger-border/60" : ""
+                  isAnnouncement
+                    ? "border-2 border-orange-400 bg-gradient-to-br from-orange-50/90 to-amber-50/50 shadow-sm"
+                    : !a.read
+                      ? "ring-1 ring-danger-border/60"
+                      : ""
                 }`}
               >
-                {!a.read && (
+                {!a.read && !isAnnouncement && (
                   <span
                     className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-danger-solid px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white"
                     aria-label="Unread alert"
+                  >
+                    New
+                  </span>
+                )}
+                {!a.read && isAnnouncement && (
+                  <span
+                    className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white"
+                    aria-label="Unread announcement"
                   >
                     New
                   </span>
@@ -268,7 +292,7 @@ export default function AlertsTab({
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-[13px] font-semibold text-ink">{meta.label}</span>
-                      {a.member?.name && (
+                      {!isAnnouncement && a.member?.name && (
                         <span className="flex min-w-0 items-center gap-1.5">
                           <Avatar member={a.member} size="xs" ring={false} />
                           <span className="truncate text-xs text-ink-500">{a.member.name}</span>
@@ -283,7 +307,21 @@ export default function AlertsTab({
                       </time>
                     </div>
 
-                    <p className="mt-1 text-[13px] leading-relaxed text-ink-700">{a.message}</p>
+                    {isAnnouncement && a.title && (
+                      <h4 className="mt-1.5 text-[14px] font-semibold leading-snug text-ink">
+                        {a.title}
+                      </h4>
+                    )}
+
+                    <p className={`text-[13px] leading-relaxed text-ink-700 ${isAnnouncement ? "mt-1.5" : "mt-1"}`}>
+                      {a.message}
+                    </p>
+
+                    {isAnnouncement && a.announcedBy && (
+                      <p className="mt-2 text-xs font-semibold text-orange-800">
+                        Announcement by {a.announcedBy}
+                      </p>
+                    )}
 
                     {canAttemptComplete && !isExpanded && (
                       canComplete ? (
