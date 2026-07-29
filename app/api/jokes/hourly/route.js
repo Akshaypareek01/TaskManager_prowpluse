@@ -28,9 +28,18 @@ export async function GET() {
       apiKey: process.env.OPENAI_API_KEY ?? null,
       rosterMembers,
     });
+
+    if (!payload) {
+      console.warn("[api/jokes/hourly] no joke for current slot", {
+        rosterSize: rosterMembers.length,
+        optedIn: rosterMembers.filter((m) => m.allowHourlyRoast).length,
+        hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+      });
+    }
+
     return NextResponse.json(payload);
   } catch (err) {
-    console.error("[api/jokes/hourly]", err.message);
+    console.error("[api/jokes/hourly]", err.message, err.stack);
     return NextResponse.json(null);
   }
 }

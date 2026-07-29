@@ -39,6 +39,7 @@ import {
   serializeRoastKeywords,
 } from "../lib/roastKeywords.js";
 import {
+  buildFallbackJoke,
   buildJokeCacheKey,
   buildJokeUserPrompt,
   getHourSlot,
@@ -585,6 +586,17 @@ test("parseJokeResponse", () => {
   if (!ok?.joke.includes("Prakhar")) throw new Error("missing joke text");
   if (ok.emoji !== "😂") throw new Error("missing emoji");
   if (parseJokeResponse("{")) throw new Error("invalid JSON should return null");
+});
+
+test("buildFallbackJoke is deterministic per slot", () => {
+  const profile = { name: "Akshay Pareek", keywords: [], isBoss: false };
+  const first = buildFallbackJoke(profile, "2026-07-29", 11);
+  const again = buildFallbackJoke(profile, "2026-07-29", 11);
+  const otherHour = buildFallbackJoke(profile, "2026-07-29", 12);
+  if (!first.joke.includes("Akshay Pareek")) throw new Error("fallback should include name");
+  if (first.joke !== again.joke) throw new Error("fallback should be stable for same slot");
+  if (!first.emoji) throw new Error("fallback should include emoji");
+  if (first.joke === otherHour.joke) throw new Error("fallback should vary by hour");
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
