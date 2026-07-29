@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Avatar from "./Avatar";
 import TaskCard from "./TaskCard";
@@ -65,7 +65,7 @@ function filterByMember(list, filterId) {
 /**
  * Activity feed with today default and paginated 30-day history.
  *
- * @param {{ alerts: object[], now: number, filterId?: string, filterName?: string, tasks?: object[], onComplete?: Function, onGoToday?: () => void, onClearFilter?: () => void }} props
+ * @param {{ alerts: object[], now: number, filterId?: string, filterName?: string, tasks?: object[], onComplete?: Function, onGoToday?: () => void, onClearFilter?: () => void, onAlertsRead?: () => void }} props
  */
 export default function AlertsTab({
   alerts,
@@ -79,8 +79,10 @@ export default function AlertsTab({
   canCompleteTask,
   signInHref = "/sign-in",
   isAuthenticated = false,
+  onAlertsRead,
 }) {
   const reduced = useReducedMotion();
+  const markedRef = useRef(new Set());
   const [range, setRange] = useState("today");
   const [historicalAlerts, setHistoricalAlerts] = useState([]);
   const [hasMore, setHasMore] = useState(false);
@@ -91,6 +93,9 @@ export default function AlertsTab({
 
   useEffect(() => setExpandedTaskId(null), [filterId, range]);
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    markedRef.current.clear();
+  }, [filterId, range]);
 
   /**
    * Load a page of historical alerts from the server.
@@ -141,6 +146,31 @@ export default function AlertsTab({
     const source = range === "today" ? alerts : historicalAlerts;
     return filterByMember(source, filterId);
   }, [alerts, historicalAlerts, filterId, range]);
+
+  /**
+   * Mark visible unread alerts as read once the user opens this tab.
+   */
+  useEffect(() => {
+    const unreadIds = visibleAlerts
+      .filter((a) => !a.read && !markedRef.current.has(a.id))
+      .map((a) => a.id);
+    if (unreadIds.length === 0) return;
+
+    unreadIds.forEach((id) => markedRef.current.add(id));
+
+    fetch("/api/alerts/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alertIds: unreadIds }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to mark alerts read");
+        onAlertsRead?.();
+      })
+      .catch(() => {
+        unreadIds.forEach((id) => markedRef.current.delete(id));
+      });
+  }, [visibleAlerts, onAlertsRead]);
 
   const taskById = useMemo(() => Object.fromEntries(tasks.map((t) => [t.id, t])), [tasks]);
 
@@ -217,7 +247,19 @@ export default function AlertsTab({
 
           return (
             <motion.li key={a.id} {...riseItem(reduced)}>
-              <article className="card overflow-hidden">
+              <article
+                className={`card relative overflow-hidden ${
+                  !a.read ? "ring-1 ring-danger-border/60" : ""
+                }`}
+              >
+                {!a.read && (
+                  <span
+                    className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-danger-solid px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white"
+                    aria-label="Unread alert"
+                  >
+                    New
+                  </span>
+                )}
                 <div className="flex items-start gap-3 p-3.5">
                   <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${meta.ring}`}>
                     <Icon name={meta.icon} size={16} />

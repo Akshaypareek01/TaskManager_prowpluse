@@ -84,6 +84,10 @@ function rosterStatBadges(m, { showLowEffortWarning }) {
 export default function Roster({ members, filterId, onFilter, now }) {
   const reduced = useReducedMotion();
   const showLowEffortWarning = isPastLowEffortThreshold(now);
+  const totalUnreadAlerts = members.reduce(
+    (sum, m) => sum + (m.unreadAlertCount || 0),
+    0
+  );
 
   return (
     <motion.div
@@ -98,6 +102,7 @@ export default function Roster({ members, filterId, onFilter, now }) {
         onClick={() => onFilter("all")}
         label="All team"
         sub={`${members.length} people`}
+        badge={totalUnreadAlerts > 0 ? totalUnreadAlerts : null}
         leading={
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-ink-600 ring-2 ring-white">
             <Icon name="users" size={13} />
@@ -115,7 +120,7 @@ export default function Roster({ members, filterId, onFilter, now }) {
             onClick={() => onFilter(m.id)}
             label={m.name}
             statBadges={stats.badges}
-            badge={m.badgeCount > 0 ? m.badgeCount : null}
+            badge={m.unreadAlertCount > 0 ? m.unreadAlertCount : null}
             ariaLabel={`${m.name}, ${stats.ariaSummary}${stats.inactive ? ", very low effort today" : ""}`}
             leading={<Avatar member={m} size="xs" ring={false} />}
           />

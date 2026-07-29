@@ -324,10 +324,11 @@ function WallShell({ initialState }) {
     [filterId, members]
   );
 
-  /** Tab badge: only when a person is selected — today's alerts for them. */
+  /** Tab badge: unread alerts for the current filter (including all team). */
   const alertsTabCount = useMemo(() => {
-    if (filterId === "all") return 0;
-    return alerts.filter((a) => a.member?.id === filterId).length;
+    const unread = alerts.filter((a) => !a.read);
+    if (filterId === "all") return unread.length;
+    return unread.filter((a) => a.member?.id === filterId).length;
   }, [alerts, filterId]);
 
   const lastSyncLabel = useMemo(() => {
@@ -576,6 +577,7 @@ function WallShell({ initialState }) {
                 canCompleteTask={canCompleteTask}
                 signInHref={signInHref}
                 isAuthenticated={Boolean(user)}
+                onAlertsRead={() => refresh({ silent: true })}
               />
             )}
             {tab === "history" && (
