@@ -7,6 +7,7 @@ import Button from "../ui/Button";
 import Progress from "../ui/Progress";
 import { deepen } from "@/lib/colors";
 import { riseItem, staggerParent } from "@/lib/motion";
+import { rankTopPerformers } from "./LeaderboardPodium";
 
 const COLLAPSED_ROWS = 6;
 
@@ -25,6 +26,14 @@ export default function MemberBars({ byMember }) {
   const rows = [...byMember].sort(
     (a, b) => b.completionRate - a.completionRate || b.total - a.total
   );
+  const rankByMemberId = Object.fromEntries(
+    rankTopPerformers(byMember).map((row) => [row.member.id, row.rank])
+  );
+  const rankBadgeClass = {
+    1: "bg-gradient-to-br from-yellow-300 to-amber-500 text-amber-950",
+    2: "bg-gradient-to-br from-slate-200 to-slate-400 text-slate-800",
+    3: "bg-gradient-to-br from-orange-300 to-orange-600 text-orange-950",
+  };
   const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS);
   const hidden = rows.length - visible.length;
 
@@ -38,7 +47,19 @@ export default function MemberBars({ byMember }) {
       <motion.ul {...staggerParent(reduced, 0.03)} className="space-y-3.5">
         {visible.map((row) => (
           <motion.li key={row.member.id} {...riseItem(reduced)} className="flex items-center gap-3">
-            <Avatar member={row.member} size="sm" ring={false} />
+            <div className="relative shrink-0">
+              <Avatar member={row.member} size="sm" ring={false} />
+              {rankByMemberId[row.member.id] && (
+                <span
+                  className={`absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full text-[9px] font-extrabold tabular-nums ring-2 ring-white ${
+                    rankBadgeClass[rankByMemberId[row.member.id]]
+                  }`}
+                  aria-label={`Rank ${rankByMemberId[row.member.id]}`}
+                >
+                  {rankByMemberId[row.member.id]}
+                </span>
+              )}
+            </div>
 
             <div className="min-w-0 flex-1">
               <div className="mb-1.5 flex items-baseline justify-between gap-2">
