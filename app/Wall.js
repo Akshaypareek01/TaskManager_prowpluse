@@ -10,6 +10,7 @@ import Roster, { LowEffortAlert } from "./components/Roster";
 import TodayTab from "./components/TodayTab";
 import AlertsTab from "./components/AlertsTab";
 import HistoryTab from "./components/HistoryTab";
+import ReportsTab from "./components/ReportsTab";
 import TaskComposer from "./components/TaskComposer";
 import TaskDetailDrawer from "./components/TaskDetailDrawer";
 import UserProfileDrawer from "./components/UserProfileDrawer";
@@ -368,6 +369,7 @@ function WallShell({ initialState }) {
       tone: alertsTabCount > 0 ? "danger" : "neutral",
     },
     { key: "history", label: "History", icon: "activity" },
+    { key: "reports", label: "Reports", icon: "file-text" },
   ];
 
   return (
@@ -511,7 +513,7 @@ function WallShell({ initialState }) {
               now={now}
               onFilter={(id) => {
                 setFilterId(id);
-                if (tab !== "history" && tab !== "alerts") setTab("today");
+                if (tab !== "history" && tab !== "alerts" && tab !== "reports") setTab("today");
               }}
             />
           </div>
@@ -583,6 +585,7 @@ function WallShell({ initialState }) {
                 onViewTask={openTaskDetail}
               />
             )}
+            {tab === "reports" && <ReportsTab />}
           </motion.div>
         </AnimatePresence>
       </main>

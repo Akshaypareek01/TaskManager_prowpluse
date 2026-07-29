@@ -50,6 +50,18 @@ import {
   parseJokeResponse,
   pickMemberForSlot,
 } from "../lib/hourlyJokes.js";
+import {
+  aggregateWeekStats,
+  daysFromMonday,
+  deriveCheckInStatus,
+  getDaysUntilNextReport,
+  getNextReportDate,
+  getPreviousWeekBounds,
+  getWeekBounds,
+  getWeekdayDates,
+  parseReportResponse,
+  shouldGeneratePreviousWeekReport,
+} from "../lib/weeklyReport.js";
 
 let passed = 0;
 let failed = 0;
@@ -597,6 +609,132 @@ test("buildFallbackJoke is deterministic per slot", () => {
   if (first.joke !== again.joke) throw new Error("fallback should be stable for same slot");
   if (!first.emoji) throw new Error("fallback should include emoji");
   if (first.joke === otherHour.joke) throw new Error("fallback should vary by hour");
+});
+
+test("getWeekBounds Monday–Sunday", () => {
+  const { weekStart, weekEnd } = getWeekBounds(new Date(2026, 6, 29, 12, 0));
+  if (weekStart !== "2026-07-27") throw new Error(`start ${weekStart}`);
+  if (weekEnd !== "2026-08-02") throw new Error(`end ${weekEnd}`);
+});
+
+test("getPreviousWeekBounds", () => {
+  const { weekStart, weekEnd } = getPreviousWeekBounds(new Date(2026, 6, 29, 12, 0));
+  if (weekStart !== "2026-07-20") throw new Error(`prev start ${weekStart}`);
+  if (weekEnd !== "2026-07-26") throw new Error(`prev end ${weekEnd}`);
+});
+
+test("daysFromMonday", () => {
+  if (daysFromMonday(new Date(2026, 6, 27)) !== 0) throw new Error("Mon should be 0");
+  if (daysFromMonday(new Date(2026, 6, 29)) !== 2) throw new Error("Wed should be 2");
+  if (daysFromMonday(new Date(2026, 7, 2)) !== 6) throw new Error("Sun should be 6");
+});
+
+test("getWeekdayDates Mon–Fri only", () => {
+  const days = getWeekdayDates("2026-07-27", "2026-08-02");
+  if (days.length !== 5) throw new Error(`expected 5 weekdays got ${days.length}`);
+  if (days[0] !== "2026-07-27" || days[4] !== "2026-07-31") {
+    throw new Error(`bad weekdays ${days.join(",")}`);
+  }
+});
+
+test("deriveCheckInStatus thresholds", () => {
+  if (deriveCheckInStatus(5, 5) !== "excellent") throw new Error("5/5");
+  if (deriveCheckInStatus(4, 5) !== "good") throw new Error("4/5");
+  if (deriveCheckInStatus(3, 5) !== "fair") throw new Error("3/5");
+  if (deriveCheckInStatus(2, 5) !== "needs-improvement") throw new Error("2/5");
+});
+
+test("aggregateWeekStats per member", () => {
+  const members = [{ id: "a", name: "Akshay", color: "#000", initials: "AP" }];
+  const tasks = [
+    {
+      memberId: "a",
+      dueDate: "2026-07-27",
+      status: "completed",
+      startTime: new Date(2026, 6, 27, 9, 0),
+      endTime: new Date(2026, 6, 27, 11, 0),
+    },
+    { memberId: "a", dueDate: "2026-07-28", status: "pending" },
+  ];
+  const stats = aggregateWeekStats(tasks, members, "2026-07-27", "2026-08-02");
+  const m = stats.members[0];
+  if (m.tasksCount !== 2) throw new Error(`tasks ${m.tasksCount}`);
+  if (m.completedCount !== 1) throw new Error(`completed ${m.completedCount}`);
+  if (m.workingHoursMs !== 7200000) throw new Error(`hours ${m.workingHoursMs}`);
+  if (m.checkInDays < 1) throw new Error("should have check-in days");
+});
+
+test("parseReportResponse merges AI with stats", () => {
+  const stats = {
+    weekStart: "2026-07-27",
+    weekEnd: "2026-08-02",
+    members: [
+      {
+        memberId: "a",
+        name: "Akshay",
+        color: "#000",
+        initials: "AP",
+        tasksCount: 2,
+        completedCount: 1,
+        pendingCount: 1,
+        workingHoursMs: 3600000,
+        workingHoursLabel: "1h",
+        checkInStatus: "good",
+        checkInDays: 4,
+        checkInExpectedDays: 5,
+        taskTitles: ["Ship feature"],
+        completionRate: 50,
+        isInactive: false,
+        isBoss: false,
+      },
+    ],
+  };
+  const raw = JSON.stringify({
+    summary: "Solid week.",
+    teamSummary: "Team crushed it.",
+    members: [
+      {
+        memberId: "a",
+        feedback: "Great work on Ship feature.",
+        motivation: "Keep going!",
+        energyLevel: "high",
+      },
+    ],
+  });
+  const parsed = parseReportResponse(raw, stats);
+  if (!parsed?.summary.includes("Solid")) throw new Error("missing summary");
+  if (parsed.members[0].feedback !== "Great work on Ship feature.") {
+    throw new Error("missing feedback");
+  }
+  if (parsed.members[0].energyLevel !== "high") throw new Error("energy level");
+});
+
+test("getNextReportDate and daysUntil", () => {
+  const monBeforeNine = getNextReportDate(new Date(2026, 6, 27, 8, 30));
+  if (monBeforeNine.getHours() !== 9) throw new Error("should be 9 AM");
+  if (localDayStr(monBeforeNine) !== "2026-07-27") {
+    throw new Error("same Monday before 9");
+  }
+
+  const monAfterNine = getNextReportDate(new Date(2026, 6, 27, 10, 0));
+  if (localDayStr(monAfterNine) !== "2026-08-03") {
+    throw new Error(`next Monday after 9 got ${localDayStr(monAfterNine)}`);
+  }
+
+  const days = getDaysUntilNextReport(new Date(2026, 6, 27, 10, 0));
+  if (days < 1) throw new Error(`daysUntil should be >= 1 got ${days}`);
+});
+
+test("shouldGeneratePreviousWeekReport Monday 9 AM gate", () => {
+  if (shouldGeneratePreviousWeekReport(new Date(2026, 6, 28, 10, 0))) {
+    throw new Error("Tuesday should not trigger");
+  }
+  if (shouldGeneratePreviousWeekReport(new Date(2026, 6, 27, 8, 0))) {
+    throw new Error("Monday before 9 should not trigger");
+  }
+  if (!shouldGeneratePreviousWeekReport(new Date(2026, 6, 27, 9, 30))) {
+    throw new Error("Monday after 9 should trigger");
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
