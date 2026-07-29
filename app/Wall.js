@@ -19,6 +19,7 @@ import Icon from "./components/ui/Icon";
 import Button from "./components/ui/Button";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { localDayStr } from "@/lib/dates";
+import { getHourSlot } from "@/lib/hourlyJokes";
 import { getDailyGreeting } from "@/lib/greetings";
 import { staggerParent, tBase } from "@/lib/motion";
 import { canViewHourlyJoke } from "@/lib/teamProfiles";
@@ -351,11 +352,10 @@ function WallShell({ initialState }) {
     });
   }, [now, user?.id, user?.name, user?.email, user?.memberId, authLoaded, clientSeed]);
 
-  /** Changes once per local hour — drives hourly joke refresh. */
-  const hourSlotKey = useMemo(() => {
-    const d = new Date(now);
-    return `${localDayStr(d)}T${String(d.getHours()).padStart(2, "0")}`;
-  }, [Math.floor(now / 3_600_000)]);
+  /** Changes once per IST hour — drives hourly joke refresh. */
+  const hourSlotKey = useMemo(() => getHourSlot(new Date(now)).hourSlot, [
+    getHourSlot(new Date(now)).hourSlot,
+  ]);
 
   const mayViewHourlyJoke = authLoaded && Boolean(user) && canViewHourlyJoke(user);
 
