@@ -50,6 +50,19 @@ import {
   parseJokeResponse,
   pickMemberForSlot,
 } from "../lib/hourlyJokes.js";
+
+/**
+ * Build a Date for a specific Asia/Kolkata local datetime (for roast tests).
+ * @param {number} year
+ * @param {number} month 1–12
+ * @param {number} day
+ * @param {number} hour 0–23
+ * @param {number} [minute]
+ * @returns {Date}
+ */
+function istDate(year, month, day, hour, minute = 0) {
+  return new Date(Date.UTC(year, month - 1, day, hour - 5, minute - 30));
+}
 import {
   aggregateWeekStats,
   daysFromMonday,
@@ -360,22 +373,22 @@ test("formatDateTime12h includes date and 12-hour time", () => {
 });
 
 test("getNextRoastLabel office-hour schedule", () => {
-  const before = getNextRoastLabel(new Date(2026, 6, 28, 9, 30));
+  const before = getNextRoastLabel(istDate(2026, 7, 28, 9, 30));
   if (!before.text.includes("Roasts start at")) {
     throw new Error(`before hours: ${before.text}`);
   }
 
-  const during = getNextRoastLabel(new Date(2026, 6, 28, 14, 18));
+  const during = getNextRoastLabel(istDate(2026, 7, 28, 14, 18));
   if (!during.text.includes("Next roast in") && !during.text.includes("New roast at")) {
     throw new Error(`during hours: ${during.text}`);
   }
 
-  const lastHour = getNextRoastLabel(new Date(2026, 6, 28, 17, 10));
+  const lastHour = getNextRoastLabel(istDate(2026, 7, 28, 17, 10));
   if (!lastHour.text.includes("Back tomorrow")) {
     throw new Error(`last hour: ${lastHour.text}`);
   }
 
-  const after = getNextRoastLabel(new Date(2026, 6, 28, 19, 0));
+  const after = getNextRoastLabel(istDate(2026, 7, 28, 19, 0));
   if (!after.text.includes("Back tomorrow")) {
     throw new Error(`after hours: ${after.text}`);
   }
@@ -387,22 +400,22 @@ test("office hours constants", () => {
 });
 
 test("isWithinOfficeHours boundaries", () => {
-  if (isWithinOfficeHours(new Date(2026, 6, 28, 9, 59))) {
+  if (isWithinOfficeHours(istDate(2026, 7, 28, 9, 59))) {
     throw new Error("9:59 should be outside office hours");
   }
-  if (!isWithinOfficeHours(new Date(2026, 6, 28, 10, 0))) {
+  if (!isWithinOfficeHours(istDate(2026, 7, 28, 10, 0))) {
     throw new Error("10:00 should be inside office hours");
   }
-  if (!isWithinOfficeHours(new Date(2026, 6, 28, 17, 30))) {
+  if (!isWithinOfficeHours(istDate(2026, 7, 28, 17, 30))) {
     throw new Error("5:30 PM should be inside office hours");
   }
-  if (isWithinOfficeHours(new Date(2026, 6, 28, 18, 0))) {
+  if (isWithinOfficeHours(istDate(2026, 7, 28, 18, 0))) {
     throw new Error("6:00 PM should be outside office hours");
   }
 });
 
 test("getHourSlot and buildJokeCacheKey", () => {
-  const now = new Date(2026, 6, 28, 14, 22, 55);
+  const now = istDate(2026, 7, 28, 14, 22);
   const slot = getHourSlot(now);
   if (slot.dateKey !== "2026-07-28") throw new Error(`date ${slot.dateKey}`);
   if (slot.hour !== 14) throw new Error(`hour ${slot.hour}`);
