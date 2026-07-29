@@ -428,12 +428,12 @@ test("buildLocalDateTime 12-hour parts to epoch ms", () => {
 test("epochToPickerParts and pickerPartsToEpoch round-trip", () => {
   const ts = new Date(2026, 6, 29, 9, 47).getTime();
   const parts = epochToPickerParts(ts);
-  if (!parts || parts.hour12 !== 9 || parts.minute !== 45 || parts.ampm !== "AM") {
+  if (!parts || parts.hour12 !== 9 || parts.minute !== 47 || parts.ampm !== "AM") {
     throw new Error(`bad parts ${JSON.stringify(parts)}`);
   }
 
   const back = pickerPartsToEpoch(parts);
-  const expected = new Date(2026, 6, 29, 9, 45, 0, 0).getTime();
+  const expected = new Date(2026, 6, 29, 9, 47, 0, 0).getTime();
   if (back !== expected) throw new Error(`round-trip ${back} !== ${expected}`);
 });
 

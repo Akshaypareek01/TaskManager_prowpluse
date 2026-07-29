@@ -5,13 +5,22 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Icon from "./ui/Icon";
 import { Select, TextInput } from "./ui/Field";
 import { tFast } from "@/lib/motion";
-import { QUARTER_MINUTES } from "@/lib/dates";
 
 const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
 
 /**
- * Friendly date + 12-hour time picker (quarter-hour minutes, AM/PM toggle).
- * Replaces native datetime-local for clearer, mobile-friendly completion flows.
+ * Clamp minute input to 0–59.
+ * @param {number|string} minute
+ * @returns {number}
+ */
+function clampMinute(minute) {
+  const n = Math.floor(Number(minute));
+  if (Number.isNaN(n)) return 0;
+  return Math.min(59, Math.max(0, n));
+}
+
+/**
+ * Friendly date + 12-hour time picker with precise minutes (0–59).
  *
  * @param {object} props
  * @param {string} props.label - Field label (e.g. "Start", "End")
@@ -85,20 +94,29 @@ export default function TaskTimePicker({
             :
           </span>
 
-          <Select
-            value={String(value.minute)}
-            onChange={(e) => patch({ minute: Number(e.target.value) })}
-            onBlur={onBlur}
-            className="min-h-10 text-[13px] tabular-nums"
+          <TextInput
+            type="number"
+            min={0}
+            max={59}
+            step={1}
+            inputMode="numeric"
+            value={value.minute}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                patch({ minute: 0 });
+                return;
+              }
+              patch({ minute: clampMinute(raw) });
+            }}
+            onBlur={(e) => {
+              patch({ minute: clampMinute(e.target.value) });
+              onBlur?.();
+            }}
+            className="min-h-10 text-center text-[13px] tabular-nums"
             aria-label={`${label} minutes`}
             invalid={Boolean(error)}
-          >
-            {QUARTER_MINUTES.map((m) => (
-              <option key={m} value={m}>
-                {String(m).padStart(2, "0")}
-              </option>
-            ))}
-          </Select>
+          />
 
           <div
             className="inline-flex min-h-10 shrink-0 rounded-md border border-line-strong bg-surface p-0.5"
