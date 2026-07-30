@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import ReportCard from "./reports/ReportCard";
-import ReportDetailDrawer from "./reports/ReportDetailDrawer";
+import ReportDetailView from "./reports/ReportDetailView";
 import Button from "./ui/Button";
 import Icon from "./ui/Icon";
 import EmptyState from "./ui/EmptyState";
@@ -38,7 +38,7 @@ function ReportsSkeleton() {
 }
 
 /**
- * Weekly AI team reports tab — list, countdown, and detail drawer.
+ * Weekly AI team reports tab — list view and full-page detail with member filter.
  */
 export default function ReportsTab() {
   const reduced = useReducedMotion();
@@ -90,20 +90,23 @@ export default function ReportsTab() {
     load({ append: false });
   }, []);
 
-  const daysUntil = schedule?.daysUntil ?? null;
-  const nextLabel =
-    daysUntil === 0
-      ? "Next report generates today"
-      : daysUntil === 1
-        ? "Next report in 1 day"
-        : daysUntil != null
-          ? `Next report in ${daysUntil} days`
-          : "Loading schedule…";
-
   const showSkeleton = loading && reports.length === 0;
+
+  const nextReportLabel = schedule?.nextReportAt
+    ? `${longShortDate(new Date(schedule.nextReportAt).toISOString().slice(0, 10))} 9 AM`
+    : null;
 
   return (
     <div className="space-y-3">
+      <AnimatePresence mode="wait" initial={false}>
+        {selected ? (
+          <ReportDetailView
+            key="detail"
+            report={selected}
+            onBack={() => setSelected(null)}
+          />
+        ) : (
+          <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={tBase} className="space-y-3">
       <div className="panel px-4 py-3.5 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -111,17 +114,11 @@ export default function ReportsTab() {
               <Icon name="file-text" size={16} className="text-brand-600" />
               Weekly team reports
             </h3>
-            <p className="meta mt-1" aria-live="polite">
-              {nextLabel}
-              {schedule?.nextReportAt && (
-                <>
-                  {" · "}
-                  <span suppressHydrationWarning>
-                    {longShortDate(new Date(schedule.nextReportAt).toISOString().slice(0, 10))} 9 AM
-                  </span>
-                </>
-              )}
-            </p>
+            {nextReportLabel && (
+              <p className="meta mt-1" aria-live="polite" suppressHydrationWarning>
+                {nextReportLabel}
+              </p>
+            )}
             {schedule?.lastReport && (
               <p className="meta mt-0.5">
                 Last generated: {longShortDate(schedule.lastReport.weekStart)} week
@@ -191,12 +188,9 @@ export default function ReportsTab() {
           </Button>
         </div>
       )}
-
-      <ReportDetailDrawer
-        open={Boolean(selected)}
-        report={selected}
-        onClose={() => setSelected(null)}
-      />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

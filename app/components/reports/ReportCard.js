@@ -124,9 +124,14 @@ export function CheckInBadge({ status, days, expected }) {
  * @param {{ member: object }} props
  */
 export function MemberReportSection({ member }) {
+  const hasWarning = Boolean(member.warning && member.warning !== "null");
+  const borderClass = hasWarning
+    ? "border-2 border-orange-400 bg-gradient-to-br from-orange-50/60 to-surface"
+    : "border border-line bg-surface";
+
   return (
     <article
-      className="rounded-xl border border-line bg-surface p-4"
+      className={`rounded-xl p-4 ${borderClass}`}
       aria-labelledby={`member-report-${member.memberId}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -160,6 +165,44 @@ export function MemberReportSection({ member }) {
           />
         </div>
       </div>
+
+      {hasWarning && (
+        <div
+          className="mt-3 flex gap-2 rounded-lg border border-orange-300 bg-orange-100/80 px-3 py-2.5"
+          role="alert"
+        >
+          <Icon name="alert-triangle" size={15} className="mt-0.5 shrink-0 text-orange-700" />
+          <p className="text-xs font-medium leading-relaxed text-orange-900">{member.warning}</p>
+        </div>
+      )}
+
+      {member.strengths?.length > 0 && (
+        <div className="mt-3">
+          <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-success-fg">Strengths</p>
+          <ul className="mt-1.5 space-y-1">
+            {member.strengths.map((line) => (
+              <li key={line} className="flex gap-2 text-xs leading-relaxed text-ink-700">
+                <Icon name="check-circle" size={13} className="mt-0.5 shrink-0 text-success-fg" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {member.improvements?.length > 0 && (
+        <div className="mt-3">
+          <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-warning-fg">Improve</p>
+          <ul className="mt-1.5 space-y-1">
+            {member.improvements.map((line) => (
+              <li key={line} className="flex gap-2 text-xs leading-relaxed text-ink-700">
+                <Icon name="arrow-right" size={13} className="mt-0.5 shrink-0 text-warning-fg" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {member.taskTitles?.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label={`Tasks for ${member.name}`}>

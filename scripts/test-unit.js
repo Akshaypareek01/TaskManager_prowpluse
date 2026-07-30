@@ -81,6 +81,10 @@ import {
   parseReportResponse,
   shouldGeneratePreviousWeekReport,
 } from "../lib/weeklyReport.js";
+import {
+  detectTaskInflation,
+  titleSimilarity,
+} from "../lib/reportInsights.js";
 
 let passed = 0;
 let failed = 0;
@@ -733,12 +737,13 @@ test("aggregateWeekStats per member", () => {
   const tasks = [
     {
       memberId: "a",
+      title: "Feature work",
       dueDate: "2026-07-27",
       status: "completed",
       startTime: new Date(2026, 6, 27, 9, 0),
       endTime: new Date(2026, 6, 27, 11, 0),
     },
-    { memberId: "a", dueDate: "2026-07-28", status: "pending" },
+    { memberId: "a", title: "Other task", dueDate: "2026-07-28", status: "pending" },
   ];
   const stats = aggregateWeekStats(tasks, members, "2026-07-27", "2026-08-02");
   const m = stats.members[0];
@@ -791,6 +796,32 @@ test("parseReportResponse merges AI with stats", () => {
     throw new Error("missing feedback");
   }
   if (parsed.members[0].energyLevel !== "high") throw new Error("energy level");
+});
+
+test("detectTaskInflation flags similar split tasks", () => {
+  const sim = titleSimilarity(
+    "UI feature in dashboard",
+    "UI feature in users section"
+  );
+  if (sim < 0.4) throw new Error(`similar titles should match got ${sim}`);
+
+  const inflation = detectTaskInflation([
+    "UI feature in dashboard",
+    "UI feature in users section",
+    "UI feature in settings page",
+    "Bug fix login",
+  ]);
+  if (!inflation.flagged) throw new Error("should flag inflation");
+  if (!inflation.summary) throw new Error("missing summary");
+});
+
+test("detectTaskInflation ignores diverse tasks", () => {
+  const inflation = detectTaskInflation([
+    "Ship billing module",
+    "Fix login bug",
+    "Write API docs",
+  ]);
+  if (inflation.flagged) throw new Error("diverse tasks should not flag");
 });
 
 test("getNextReportDate and daysUntil", () => {
