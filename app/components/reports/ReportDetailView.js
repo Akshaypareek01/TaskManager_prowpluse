@@ -11,14 +11,15 @@ import { riseItem, staggerParent, tBase } from "@/lib/motion";
 const ALL_KEY = "all";
 
 /**
- * Horizontal member picker for filtering report sections.
+ * Horizontal member picker — always one row, scrolls when needed.
  * @param {{ members: object[], value: string, onChange: (id: string) => void }} props
  */
 function ReportMemberFilter({ members, value, onChange }) {
-  const reduced = useReducedMotion();
-
   const tabs = useMemo(
-    () => [{ key: ALL_KEY, label: "All team", member: null }, ...members.map((m) => ({ key: m.memberId, label: m.name, member: m }))],
+    () => [
+      { key: ALL_KEY, label: "All team", member: null },
+      ...members.map((m) => ({ key: m.memberId, label: m.name, member: m })),
+    ],
     [members]
   );
 
@@ -26,44 +27,45 @@ function ReportMemberFilter({ members, value, onChange }) {
     <div
       role="tablist"
       aria-label="Filter report by team member"
-      className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="w-full overflow-x-auto rounded-xl border border-line bg-surface-sunken p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {tabs.map((tab) => {
-        const active = value === tab.key;
-        return (
-          <motion.button
-            key={tab.key}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(tab.key)}
-            {...riseItem(reduced)}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[13px] font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-              active
-                ? "border-brand-300 bg-brand-50 text-brand-800 shadow-xs"
-                : "border-line bg-surface text-ink-600 hover:border-brand-200 hover:bg-surface-hover hover:text-ink"
-            }`}
-          >
-            {tab.member ? (
-              <Avatar
-                member={{
-                  id: tab.member.memberId,
-                  name: tab.member.name,
-                  color: tab.member.color,
-                  initials: tab.member.initials,
-                }}
-                size="xs"
-                ring={false}
-              />
-            ) : (
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-ink-600">
-                <Icon name="users" size={13} />
-              </span>
-            )}
-            <span className="max-w-[9rem] truncate">{tab.label}</span>
-          </motion.button>
-        );
-      })}
+      <div className="flex w-max min-w-full flex-nowrap items-center gap-1">
+        {tabs.map((tab) => {
+          const active = value === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(tab.key)}
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:px-3 ${
+                active
+                  ? "border border-line bg-surface text-ink shadow-xs"
+                  : "border border-transparent text-ink-500 hover:bg-surface-hover hover:text-ink-700"
+              }`}
+            >
+              {tab.member ? (
+                <Avatar
+                  member={{
+                    id: tab.member.memberId,
+                    name: tab.member.name,
+                    color: tab.member.color,
+                    initials: tab.member.initials,
+                  }}
+                  size="xs"
+                  ring={false}
+                />
+              ) : (
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-ink-600">
+                  <Icon name="users" size={13} />
+                </span>
+              )}
+              <span className="max-w-[7.5rem] truncate sm:max-w-[9rem]">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
