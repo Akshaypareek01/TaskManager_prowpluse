@@ -754,6 +754,18 @@ test("aggregateWeekStats per member", () => {
   if (m.checkInDays < 1) throw new Error("should have check-in days");
 });
 
+test("aggregateWeekStats excludes boss from reports", () => {
+  const members = [
+    { id: "a", name: "Akshay", color: "#000", initials: "AP" },
+    { id: "boss", name: BOSS_MEMBER_NAME, color: "#111", initials: "RV" },
+  ];
+  const stats = aggregateWeekStats([], members, "2026-07-27", "2026-08-02");
+  if (stats.members.some((m) => m.name === BOSS_MEMBER_NAME)) {
+    throw new Error("boss should be excluded from weekly reports");
+  }
+  if (stats.members.length !== 1) throw new Error(`expected 1 member, got ${stats.members.length}`);
+});
+
 test("parseReportResponse merges AI with stats", () => {
   const stats = {
     weekStart: "2026-07-27",
