@@ -11,7 +11,7 @@ import { riseItem, staggerParent, tBase } from "@/lib/motion";
 const ALL_KEY = "all";
 
 /**
- * Horizontal member picker — always one row, scrolls when needed.
+ * Member picker — wraps across multiple rows (like roster chips).
  * @param {{ members: object[], value: string, onChange: (id: string) => void }} props
  */
 function ReportMemberFilter({ members, value, onChange }) {
@@ -27,45 +27,43 @@ function ReportMemberFilter({ members, value, onChange }) {
     <div
       role="tablist"
       aria-label="Filter report by team member"
-      className="w-full overflow-x-auto rounded-xl border border-line bg-surface-sunken p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-1.5 rounded-xl border border-line bg-surface-sunken p-2 sm:grid-cols-[repeat(auto-fill,minmax(11.5rem,1fr))]"
     >
-      <div className="flex w-max min-w-full flex-nowrap items-center gap-1">
-        {tabs.map((tab) => {
-          const active = value === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onChange(tab.key)}
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:px-3 ${
-                active
-                  ? "border border-line bg-surface text-ink shadow-xs"
-                  : "border border-transparent text-ink-500 hover:bg-surface-hover hover:text-ink-700"
-              }`}
-            >
-              {tab.member ? (
-                <Avatar
-                  member={{
-                    id: tab.member.memberId,
-                    name: tab.member.name,
-                    color: tab.member.color,
-                    initials: tab.member.initials,
-                  }}
-                  size="xs"
-                  ring={false}
-                />
-              ) : (
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-ink-600">
-                  <Icon name="users" size={13} />
-                </span>
-              )}
-              <span className="max-w-[7.5rem] truncate sm:max-w-[9rem]">{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {tabs.map((tab) => {
+        const active = value === tab.key;
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(tab.key)}
+            className={`inline-flex h-9 w-full min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:px-3 ${
+              active
+                ? "border border-line bg-surface text-ink shadow-xs"
+                : "border border-transparent text-ink-500 hover:bg-surface-hover hover:text-ink-700"
+            }`}
+          >
+            {tab.member ? (
+              <Avatar
+                member={{
+                  id: tab.member.memberId,
+                  name: tab.member.name,
+                  color: tab.member.color,
+                  initials: tab.member.initials,
+                }}
+                size="xs"
+                ring={false}
+              />
+            ) : (
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-ink-600">
+                <Icon name="users" size={13} />
+              </span>
+            )}
+            <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
