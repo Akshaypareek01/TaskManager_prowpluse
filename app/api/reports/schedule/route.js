@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import {
-  generateAndSaveReport,
+  ensureWeeklyReportIfNeeded,
   getLatestReport,
-  getReportByWeekStart,
 } from "@/lib/reportStore";
+import { appDayStr } from "@/lib/appTimezone";
 import {
   getDaysUntilNextReport,
   getNextReportDate,
   getPreviousWeekBounds,
-  shouldGeneratePreviousWeekReport,
 } from "@/lib/weeklyReport";
 
 export const dynamic = "force-dynamic";
@@ -23,29 +22,12 @@ export async function GET() {
     const daysUntil = getDaysUntilNextReport(now);
     const { weekStart: prevStart, weekEnd: prevEnd } = getPreviousWeekBounds(now);
 
-    let lastReport = await getLatestReport();
-    let generating = false;
-
-    if (shouldGeneratePreviousWeekReport(now)) {
-      const existing = await getReportByWeekStart(prevStart);
-      if (!existing) {
-        try {
-          const { report, created } = await generateAndSaveReport({
-            weekStart: prevStart,
-            weekEnd: prevEnd,
-          });
-          if (created || report) {
-            lastReport = report;
-            generating = created;
-          }
-        } catch (err) {
-          console.error("[api/reports/schedule] auto-generate failed:", err.message);
-        }
-      }
-    }
+    const generated = await ensureWeeklyReportIfNeeded(now);
+    let lastReport = generated?.report || (await getLatestReport());
 
     return NextResponse.json({
       nextReportAt,
+      nextReportDay: appDayStr(nextReportAt),
       daysUntil,
       lastReport: lastReport
         ? {
@@ -57,7 +39,7 @@ export async function GET() {
           }
         : null,
       previousWeek: { weekStart: prevStart, weekEnd: prevEnd },
-      generating,
+      generating: Boolean(generated?.created),
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

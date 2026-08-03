@@ -18,6 +18,7 @@ import {
   pickerPartsToEpoch,
   snapMinuteToQuarter,
 } from "../lib/dates.js";
+import { appDayStr } from "../lib/appTimezone.js";
 import { buildAnalytics, formatDurationMs, taskToApi, derivePendingStatus } from "../lib/analytics.js";
 import { memberTaskCounts } from "../lib/alerts.js";
 import { isBossMember, BOSS_MEMBER_NAME } from "../lib/members.js";
@@ -825,30 +826,42 @@ test("detectTaskInflation ignores diverse tasks", () => {
 });
 
 test("getNextReportDate and daysUntil", () => {
-  const monBeforeNine = getNextReportDate(new Date(2026, 6, 27, 8, 30));
-  if (monBeforeNine.getHours() !== 9) throw new Error("should be 9 AM");
-  if (localDayStr(monBeforeNine) !== "2026-07-27") {
-    throw new Error("same Monday before 9");
+  const monBeforeNine = istDate(2026, 7, 27, 8, 30);
+  const nextBefore = getNextReportDate(monBeforeNine);
+  if (appDayStr(nextBefore) !== "2026-07-27") {
+    throw new Error(`same Monday before 9 got ${appDayStr(nextBefore)}`);
   }
 
-  const monAfterNine = getNextReportDate(new Date(2026, 6, 27, 10, 0));
-  if (localDayStr(monAfterNine) !== "2026-08-03") {
-    throw new Error(`next Monday after 9 got ${localDayStr(monAfterNine)}`);
+  const monAfterNine = istDate(2026, 7, 27, 10, 0);
+  const nextAfter = getNextReportDate(monAfterNine);
+  if (appDayStr(nextAfter) !== "2026-08-03") {
+    throw new Error(`next Monday after 9 got ${appDayStr(nextAfter)}`);
   }
 
-  const days = getDaysUntilNextReport(new Date(2026, 6, 27, 10, 0));
+  const days = getDaysUntilNextReport(monAfterNine);
   if (days < 1) throw new Error(`daysUntil should be >= 1 got ${days}`);
 });
 
-test("shouldGeneratePreviousWeekReport Monday 9 AM gate", () => {
-  if (shouldGeneratePreviousWeekReport(new Date(2026, 6, 28, 10, 0))) {
-    throw new Error("Tuesday should not trigger");
+test("shouldGeneratePreviousWeekReport IST gate with catch-up", () => {
+  const sunday = istDate(2026, 8, 2, 10, 0);
+  const prevOnSunday = getPreviousWeekBounds(sunday);
+  if (prevOnSunday.weekStart !== "2026-07-20") {
+    throw new Error(`Aug 2 prev week should be Jul 20–26, got ${prevOnSunday.weekStart}`);
   }
-  if (shouldGeneratePreviousWeekReport(new Date(2026, 6, 27, 8, 0))) {
-    throw new Error("Monday before 9 should not trigger");
+
+  const monBefore = istDate(2026, 8, 3, 8, 30);
+  if (shouldGeneratePreviousWeekReport(monBefore)) {
+    throw new Error("Monday before 9 IST should not trigger");
   }
-  if (!shouldGeneratePreviousWeekReport(new Date(2026, 6, 27, 9, 30))) {
-    throw new Error("Monday after 9 should trigger");
+
+  const monAfter = istDate(2026, 8, 3, 9, 30);
+  if (!shouldGeneratePreviousWeekReport(monAfter)) {
+    throw new Error("Monday after 9 IST should trigger");
+  }
+
+  const tuesday = istDate(2026, 8, 4, 11, 0);
+  if (!shouldGeneratePreviousWeekReport(tuesday)) {
+    throw new Error("Tuesday catch-up should trigger");
   }
 });
 

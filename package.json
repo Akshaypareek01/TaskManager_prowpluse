@@ -12,6 +12,7 @@
     "db:down": "docker compose down",
     "db:migrate": "node scripts/migrate.js",
     "db:import-legacy": "node scripts/import-legacy.js",
+    "report:generate": "node scripts/generate-weekly-report.js",
     "test": "node scripts/test-unit.js"
   },
   "dependencies": {

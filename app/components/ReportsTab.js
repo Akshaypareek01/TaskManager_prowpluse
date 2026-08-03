@@ -92,9 +92,11 @@ export default function ReportsTab() {
 
   const showSkeleton = loading && reports.length === 0;
 
-  const nextReportLabel = schedule?.nextReportAt
-    ? `${longShortDate(new Date(schedule.nextReportAt).toISOString().slice(0, 10))} 9 AM`
-    : null;
+  const nextReportLabel = schedule?.nextReportDay
+    ? `${longShortDate(schedule.nextReportDay)} 9 AM`
+    : schedule?.nextReportAt
+      ? `${longShortDate(new Date(schedule.nextReportAt).toISOString().slice(0, 10))} 9 AM`
+      : null;
 
   return (
     <div className="space-y-3">
